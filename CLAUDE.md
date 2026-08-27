@@ -3,22 +3,39 @@
 Decisions already made for this project. Don't relitigate these — if one looks
 wrong, raise it rather than quietly switching.
 
-## The one hard rule: data model changes need clearance
+## The hard rules
 
-**Get the owner's explicit sign-off before any DDL is run or the storage
-structure changes.** That covers creating, altering, or dropping tables,
-columns, constraints, indexes, and RLS policies; and changing bucket names or
-the path/folder layout inside a bucket.
+Everything else in this file is a decision you can question. These two are
+not — they need an explicit yes from the owner, every time.
 
-Proposing is encouraged — write the SQL, sketch the schema, argue for it.
-What needs a yes is *executing* it, or shipping code that writes to a new
-storage layout. Present the proposal and wait.
+### 1. Data model changes need clearance
 
-The owner delegates framework, styling, and infra choices readily; a quick
-"sure, if you think that's best" on some adjacent question is **not** clearance
-for a schema change. Ask about the data model specifically, every time. Schema
-outlives everything else here and is expensive to unpick once real trip data
-exists.
+**Get sign-off before any DDL is run or the storage structure changes.** That
+covers creating, altering, or dropping tables, columns, constraints, indexes,
+and RLS policies; and changing bucket names or the path/folder layout inside a
+bucket.
+
+Proposing is encouraged — write the SQL, sketch the schema, argue for it. What
+needs a yes is *executing* it, or shipping code that writes to a new storage
+layout. Present the proposal and wait.
+
+Schema outlives everything else here and is expensive to unpick once real trip
+data exists.
+
+### 2. Never push to `main` without consent
+
+Committing freely is fine. **Pushing is not** — `git push` publishes to a
+public GitHub repo and triggers a Vercel deploy to the live site, so it is the
+step that makes work visible to the world. Wait to be asked.
+
+"Push it" authorises that push, not the next one. If a push seems necessary to
+unblock something (a hosted build needs a file, say), ask rather than assume.
+
+### Both rules share a failure mode
+
+The owner delegates framework, styling, and infra choices readily and answers
+fast. A quick "sure, if you think that's best" on an adjacent question is
+**not** clearance for either of these. Ask specifically, every time.
 
 ## What this is
 
