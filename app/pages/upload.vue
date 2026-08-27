@@ -17,6 +17,7 @@ async function signOut() {
 const MAX_BYTES = 10 * 1024 * 1024
 
 const file = ref<File | null>(null)
+const caption = ref('')
 const status = ref<'idle' | 'uploading' | 'done' | 'error'>('idle')
 const errorMessage = ref('')
 const uploadedUrl = ref('')
@@ -69,13 +70,28 @@ async function handleUpload() {
   const ext = file.value.name.split('.').pop()
   const path = `${uploaderId}/${Date.now()}-${crypto.randomUUID()}.${ext}`
 
-  const { error } = await supabase.storage
+  const { error: uploadError } = await supabase.storage
     .from('photos')
     .upload(path, file.value, { upsert: false })
 
-  if (error) {
+  if (uploadError) {
     status.value = 'error'
-    errorMessage.value = error.message
+    errorMessage.value = uploadError.message
+    return
+  }
+
+  // The row is what the gallery reads, not the bucket. If this fails the file
+  // is orphaned — invisible rather than broken, but worth surfacing.
+  const trimmed = caption.value.trim()
+  const { error: insertError } = await supabase.from('photos').insert({
+    storage_path: path,
+    uploaded_by: uploaderId,
+    caption: trimmed || null,
+  })
+
+  if (insertError) {
+    status.value = 'error'
+    errorMessage.value = `Uploaded, but not recorded: ${insertError.message}`
     return
   }
 
@@ -100,6 +116,17 @@ async function handleUpload() {
 
     <div class="card">
       <input type="file" accept="image/*" @change="onFileChange" />
+
+      <label class="caption-field">
+        <span>Caption <em>(optional)</em></span>
+        <input
+          v-model="caption"
+          type="text"
+          maxlength="200"
+          placeholder="Day 3, camped above the lock"
+        />
+      </label>
+
       <button :disabled="!file || status === 'uploading'" @click="handleUpload">
         {{ status === 'uploading' ? 'Uploading…' : 'Upload' }}
       </button>
@@ -109,7 +136,7 @@ async function handleUpload() {
       <div v-if="status === 'done'" class="result">
         <p class="success">Uploaded.</p>
         <img :src="uploadedUrl" alt="Uploaded trip photo" />
-        <a :href="uploadedUrl" target="_blank" rel="noopener">{{ uploadedUrl }}</a>
+        <NuxtLink class="gallery-link" to="/photos">See it in the gallery &rarr;</NuxtLink>
       </div>
     </div>
   </main>
@@ -207,9 +234,39 @@ button:disabled {
   margin: 0.5rem 0;
 }
 
-.result a {
+.gallery-link {
+  color: #38bdf8;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.caption-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.caption-field span {
   color: #94a3b8;
-  font-size: 0.85rem;
-  word-break: break-all;
+}
+
+.caption-field em {
+  font-style: normal;
+  color: #64748b;
+}
+
+.caption-field input {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 0.4rem;
+  padding: 0.6rem 0.7rem;
+  color: #e2e8f0;
+  font-size: 1rem;
+}
+
+.caption-field input:focus {
+  outline: 2px solid #38bdf8;
+  outline-offset: 1px;
 }
 </style>

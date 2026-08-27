@@ -24,7 +24,10 @@ useHead({
           planned stack (Nuxt, Supabase, deployed as an installable PWA) is
           working end to end. Maps, trip logs, and full accounts come next.
         </p>
-        <NuxtLink class="cta" to="/upload">Try the photo upload &rarr;</NuxtLink>
+        <div class="actions">
+          <NuxtLink class="cta" to="/photos">See the photos &rarr;</NuxtLink>
+          <NuxtLink class="cta cta-quiet" to="/upload">Upload one</NuxtLink>
+        </div>
       </div>
     </div>
   </main>
@@ -109,5 +112,22 @@ h1 {
 
 .cta:hover {
   background: #7dd3fc;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.cta-quiet {
+  background: none;
+  color: #38bdf8;
+  border: 1px solid #334155;
+}
+
+.cta-quiet:hover {
+  background: none;
+  border-color: #38bdf8;
 }
 </style>

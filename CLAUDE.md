@@ -63,7 +63,42 @@ Supabase, no Docker, no migration files** at this stage — that ceremony isn't
 worth it until there's real user data. When it is, the step is: adopt the
 Supabase CLI for migrations and add a second project for staging.
 
-Storage: a public bucket named `photos`.
+⚠️ **The schema now lives only in the database.** There are no migration files,
+so the repo has no record of it and nothing detects drift. The section below is
+hand-maintained — if you change the schema, update it in the same commit. The
+CLI is the real fix; the owner has parked it deliberately, not forgotten it.
+
+Storage: a public bucket named `photos`, public read, uploads restricted to
+authenticated users. Files live at `<uploader-user-id>/<epoch-ms>-<uuid>.<ext>`.
+
+## Data model
+
+### `public.photos`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | PK, `gen_random_uuid()` |
+| `storage_path` | `text` | not null, **unique** — path within the `photos` bucket |
+| `uploaded_by` | `uuid` | FK → `auth.users`, `on delete set null` |
+| `caption` | `text` | nullable |
+| `created_at` | `timestamptz` | not null, `now()` |
+
+Design intent worth preserving:
+
+- **Paths, never URLs.** URLs are derived at render time, so the bucket or
+  project can move without rewriting rows.
+- **`on delete set null`**, not cascade — a photo is a record of a trip and
+  outlives the account that posted it. Attribution is lost, the photo isn't.
+- **RLS**: public `select` for `anon` and `authenticated`; `insert` restricted
+  to `authenticated` with `uploaded_by = auth.uid()`, so nobody can post as
+  someone else. No `update`/`delete` policies exist yet — deliberate.
+- When trips arrive, photos gain a nullable `trip_id`; existing rows stay NULL
+  meaning "not filed under a trip". That cheap migration is why this table was
+  built standalone rather than waiting.
+
+Orphans are possible by design: the file uploads before the row is inserted, so
+a failed insert leaves an unreferenced file. Harmless — nothing lists the
+bucket — but it means bucket contents and table rows can disagree.
 
 ## Environment
 

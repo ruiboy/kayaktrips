@@ -9,8 +9,8 @@ trips.
 Live at **https://kayaktrips.vercel.app** (installable — "Add to Home Screen").
 
 This is the earliest cut, built to demonstrate the chosen stack working end to
-end. It currently has a landing page and a single photo upload that writes to
-Supabase Storage. No auth, no maps, no trip records yet.
+end. It has a landing page, a public photo gallery, and a photo upload for
+signed-in editors. No maps and no trip records yet.
 
 Uploading requires a signed-in editor; reading is open to everyone. See
 "Auth" below.
