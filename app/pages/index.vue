@@ -20,14 +20,16 @@ useHead({
         <p class="eyebrow">Kayak Trips</p>
         <h1>Every put-in, campsite, and paddle &mdash; in one place.</h1>
         <p class="lede">
-          This is the earliest cut of the app: a proof of concept to show the
-          planned stack (Nuxt, Supabase, deployed as an installable PWA) is
-          working end to end. Maps, trip logs, and full accounts come next.
+          A home for the trips we've paddled: the water, the campsites, the
+          long days, and the photos that came back with us. Have a look
+          around &mdash; or sign in and add your own.
         </p>
         <div class="actions">
           <NuxtLink class="cta" to="/photos">See the photos &rarr;</NuxtLink>
-          <NuxtLink class="cta cta-quiet" to="/upload">Upload one</NuxtLink>
+          <NuxtLink class="cta cta-quiet" to="/upload">Add a photo</NuxtLink>
         </div>
+
+        <InstallButton class="install-slot" />
       </div>
     </div>
   </main>
@@ -118,6 +120,11 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.install-slot {
+  display: block;
+  margin-top: 1.5rem;
 }
 
 .cta-quiet {
