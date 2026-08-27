@@ -3,6 +3,23 @@
 Decisions already made for this project. Don't relitigate these — if one looks
 wrong, raise it rather than quietly switching.
 
+## The one hard rule: data model changes need clearance
+
+**Get the owner's explicit sign-off before any DDL is run or the storage
+structure changes.** That covers creating, altering, or dropping tables,
+columns, constraints, indexes, and RLS policies; and changing bucket names or
+the path/folder layout inside a bucket.
+
+Proposing is encouraged — write the SQL, sketch the schema, argue for it.
+What needs a yes is *executing* it, or shipping code that writes to a new
+storage layout. Present the proposal and wait.
+
+The owner delegates framework, styling, and infra choices readily; a quick
+"sure, if you think that's best" on some adjacent question is **not** clearance
+for a schema change. Ask about the data model specifically, every time. Schema
+outlives everything else here and is expensive to unpick once real trip data
+exists.
+
 ## What this is
 
 An app for recording kayak trips: routes, durations, campsites, photos.
