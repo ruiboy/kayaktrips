@@ -15,8 +15,8 @@ signed-in editors. No maps and no trip records yet.
 Uploading requires a signed-in editor; reading is open to everyone. See
 "Auth" below.
 
-Planned next: trip records, manually drawn routes on a map, campsite details,
-and login for editors.
+Planned next: trip records, manually drawn routes on a map, and campsite
+details.
 
 ## Stack
 
@@ -25,7 +25,7 @@ and login for editors.
 | Frontend   | Nuxt 4 (Vue), installable as a PWA        |
 | Database   | Supabase (Postgres)                       |
 | Photos     | Supabase Storage                          |
-| Auth       | Supabase Auth (not wired up yet)          |
+| Auth       | Supabase Auth (email + password)          |
 | Hosting    | Vercel                                    |
 | Maps       | MapLibre + OpenStreetMap (not added yet)  |
 
@@ -57,6 +57,37 @@ Then:
 ```bash
 npm run dev
 ```
+
+## Install (PWA)
+
+The app is installable from the browser. Chrome and Edge show an "Add this to
+your home screen" link on the landing page; iOS Safari gets Share-sheet
+instructions instead, because Apple ships no install API and never fires
+`beforeinstallprompt`. That event is captured in
+`app/plugins/pwa-install.client.ts` rather than in the component, since it can
+fire before anything mounts.
+
+`@vite-pwa/nuxt` builds and serves the manifest but does **not** link it from
+the page. The `<link rel="manifest">` in `nuxt.config.ts` is what makes the app
+discoverable as installable; remove it and no install affordance ever appears.
+
+### Icons and the launch screen
+
+Everything comes from `public/mkt-badge.jpg`, the Mega Kayak Trip X sticker:
+
+| File | Used for |
+| --- | --- |
+| `icon-192.png`, `icon-512.png` | Manifest icons |
+| `icon-maskable-512.png` | Launchers that crop icons to their own shape |
+| `apple-touch-icon.png` | iOS home screen |
+| `favicon.ico` | Browser tab |
+
+The badge is circle-cropped onto the `#0f172a` background, slightly overscaled
+to hide the benchtop it was photographed on. Android composes the launch
+screen from the 512px icon, `background_color`, and `name` — there is no
+separate splash asset to maintain. iOS only shows a launch image if per-device
+`apple-touch-startup-image` files are supplied; none are, so it flashes the
+background colour instead.
 
 ## Auth
 

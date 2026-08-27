@@ -38,7 +38,9 @@ async function install() {
 <template>
   <!-- Nothing to show once installed, or in browsers with no install path. -->
   <div v-if="!isInstalled && (prompt || isIOS)" class="install">
-    <button v-if="prompt" @click="install">Add to home screen</button>
+    <button v-if="prompt" class="install-link" @click="install">
+      Add this to your home screen
+    </button>
 
     <p v-else class="ios-hint">
       To add this to your home screen: tap
@@ -48,19 +50,26 @@ async function install() {
 </template>
 
 <style scoped>
-.install button {
+/* Deliberately not a button: installing is an aside to the page, and a third
+   filled control next to the two CTAs read as more important than it is. It
+   matches the iOS hint below so both platforms get the same quiet register. */
+.install-link {
   background: none;
-  border: 1px solid #334155;
-  color: #38bdf8;
+  border: 0;
+  padding: 0;
   font: inherit;
-  font-weight: 600;
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #94a3b8;
+  text-decoration: underline;
+  text-decoration-color: #334155;
+  text-underline-offset: 0.25em;
   cursor: pointer;
 }
 
-.install button:hover {
-  border-color: #38bdf8;
+.install-link:hover {
+  color: #38bdf8;
+  text-decoration-color: #38bdf8;
 }
 
 .ios-hint {

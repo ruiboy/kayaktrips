@@ -12,7 +12,7 @@ export default defineNuxtConfig({
       // `beforeinstallprompt` never fires and no install affordance appears.
       link: [
         { rel: 'manifest', href: '/manifest.webmanifest' },
-        { rel: 'apple-touch-icon', href: '/icon-192.png' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
       ],
       meta: [
         { name: 'theme-color', content: '#0f172a' },
@@ -48,6 +48,10 @@ export default defineNuxtConfig({
       theme_color: '#0f172a',
       background_color: '#0f172a',
       display: 'standalone',
+      // Android builds the launch (splash) screen from the 512px icon,
+      // `background_color`, and `name` — there is no separate splash asset.
+      // The maskable copy keeps the badge inside the safe zone so launchers
+      // that crop to their own shape don't slice the lettering off.
       icons: [
         {
           src: 'icon-192.png',
@@ -58,6 +62,12 @@ export default defineNuxtConfig({
           src: 'icon-512.png',
           sizes: '512x512',
           type: 'image/png',
+        },
+        {
+          src: 'icon-maskable-512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable',
         },
       ],
     },
