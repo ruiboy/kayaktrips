@@ -4,6 +4,12 @@ useHead({
 })
 
 const supabase = useSupabaseClient()
+const user = useSupabaseUser()
+
+async function signOut() {
+  await supabase.auth.signOut()
+  await navigateTo('/')
+}
 
 const file = ref<File | null>(null)
 const status = ref<'idle' | 'uploading' | 'done' | 'error'>('idle')
@@ -23,8 +29,10 @@ async function handleUpload() {
   status.value = 'uploading'
   errorMessage.value = ''
 
+  // Scoping by uploader id keeps ownership legible in the bucket and leaves
+  // room for per-user policies later without a migration.
   const ext = file.value.name.split('.').pop()
-  const path = `poc/${Date.now()}-${crypto.randomUUID()}.${ext}`
+  const path = `${user.value?.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`
 
   const { error } = await supabase.storage
     .from('photos')
@@ -44,11 +52,16 @@ async function handleUpload() {
 
 <template>
   <main class="wrap">
-    <NuxtLink class="back" to="/">&larr; Back</NuxtLink>
+    <div class="topbar">
+      <NuxtLink class="back" to="/">&larr; Back</NuxtLink>
+      <span v-if="user" class="who">
+        {{ user.email }}
+        <button class="signout" @click="signOut">Sign out</button>
+      </span>
+    </div>
+
     <h1>Upload a trip photo</h1>
-    <p class="lede">
-      Straight to Supabase Storage, no login required in this POC.
-    </p>
+    <p class="lede">Straight to Supabase Storage.</p>
 
     <div class="card">
       <input type="file" accept="image/*" @change="onFileChange" />
@@ -74,10 +87,41 @@ async function handleUpload() {
   padding: 2rem;
 }
 
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 .back {
   color: #38bdf8;
   text-decoration: none;
   font-size: 0.9rem;
+}
+
+.who {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.signout {
+  background: none;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  border-radius: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.signout:hover {
+  border-color: #38bdf8;
+  color: #38bdf8;
 }
 
 h1 {

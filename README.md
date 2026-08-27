@@ -12,8 +12,8 @@ This is the earliest cut, built to demonstrate the chosen stack working end to
 end. It currently has a landing page and a single photo upload that writes to
 Supabase Storage. No auth, no maps, no trip records yet.
 
-Uploads are currently open to anyone with the URL — see "Before this stays
-public" below.
+Uploading requires a signed-in editor; reading is open to everyone. See
+"Auth" below.
 
 Planned next: trip records, manually drawn routes on a map, campsite details,
 and login for editors.
@@ -58,21 +58,36 @@ Then:
 npm run dev
 ```
 
-## Before this stays public
+## Auth
 
-The POC deliberately has no auth, which required a Supabase policy allowing
-anonymous writes to the `photos` bucket:
+Public read, gated editing. `/upload` requires a session; everything else is
+open. Enforced in two places, deliberately:
 
-```sql
-create policy "Anon can upload to photos"
-on storage.objects for insert to anon
-with check (bucket_id = 'photos');
-```
+- **Route level** — `redirectOptions.include` in `nuxt.config.ts` lists the
+  paths that require a session. Add to it as editable pages appear.
+- **Database level** — a Supabase policy restricting inserts on the `photos`
+  bucket to the `authenticated` role:
 
-That means anyone with the URL can upload to the bucket, against a 1 GB free
-tier. Fine for a short-lived demo, not fine indefinitely. To close it: drop
-that policy and add Supabase Auth, or at minimum set a file size limit and
-allowed MIME types on the bucket.
+  ```sql
+  create policy "Authenticated can upload to photos"
+  on storage.objects for insert to authenticated
+  with check (bucket_id = 'photos');
+  ```
+
+The route guard is a convenience; the storage policy is the actual security
+boundary. Never rely on the former alone.
+
+### Accounts are created by hand
+
+There is no sign-up flow, and **"Allow new users to sign up" is turned off** in
+the Supabase dashboard. To add an editor: Authentication → Users → Add user,
+with "Auto Confirm User" ticked.
+
+Sign-in is email + password rather than magic links because Supabase's default
+email service is capped at **2 messages per hour** and isn't meant for
+production. Magic links would fail unpredictably during a demo. Switching to
+magic links or OAuth later means wiring up custom SMTP (Resend et al.) or an
+OAuth provider first.
 
 ## Deployment
 

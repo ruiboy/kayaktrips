@@ -6,7 +6,15 @@ export default defineNuxtConfig({
   modules: ['@nuxtjs/supabase', '@vite-pwa/nuxt'],
 
   supabase: {
-    redirect: false,
+    // Only `include` paths require a session — everything else stays public,
+    // which is the whole point: public read, gated editing.
+    redirect: true,
+    redirectOptions: {
+      login: '/login',
+      callback: '/confirm',
+      include: ['/upload'],
+      saveRedirectToCookie: true,
+    },
   },
 
   pwa: {

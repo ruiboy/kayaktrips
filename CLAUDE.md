@@ -40,6 +40,20 @@ Storage: a public bucket named `photos`.
   on Nuxt 4's peer graph — locally and in Vercel's build. Don't "tidy" it away.
 - Secrets live in `.env` (gitignored). `.env.example` documents the shape.
 
+## Auth
+
+- **Email + password, accounts created by hand in the dashboard.** Not magic
+  links: Supabase's default email service allows only **2 messages per hour**
+  and is explicitly non-production, so link-based sign-in fails unpredictably.
+  Revisiting this means setting up custom SMTP or OAuth first — don't switch
+  to magic links without that.
+- Public sign-up is **disabled** in the Supabase dashboard. There is no
+  sign-up page and there shouldn't be one.
+- Two enforcement layers, and they are not interchangeable: the
+  `redirectOptions.include` list in `nuxt.config.ts` is convenience, the
+  storage RLS policy is the real boundary. When adding an editable page, add
+  it to `include` *and* make sure a matching policy exists.
+
 ## Scope discipline
 
 This is deliberately a proof of concept: a landing page and one photo upload.
