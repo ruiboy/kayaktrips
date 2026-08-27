@@ -15,17 +15,8 @@ signed-in editors. No maps and no trip records yet.
 Uploading requires a signed-in editor; reading is open to everyone. See
 "Auth" below.
 
-## Planned
-
-- Trip records, with manually drawn routes on a map.
-- Campsite details.
-- **Backups.** There are none right now. Supabase's free plan provides no
-  managed backups at all, and on every plan database backups exclude Storage
-  objects — so the photos need covering separately. The shape is a `pg_dump`
-  of the database plus a copy of the `photos` bucket, both kept off-site.
-
-Free-tier projects also **pause after ~7 days idle**. Un-pause the project in
-the Supabase dashboard before demoing, or the live site will look broken.
+Planned next: trip records, manually drawn routes on a map, and campsite
+details.
 
 ## Stack
 
@@ -124,6 +115,26 @@ Hosted on Vercel, auto-deploying from `main`. `SUPABASE_URL` and
 `SUPABASE_KEY` are set in the Vercel project's environment variables — the
 local `.env` is gitignored and never leaves your machine, so the two must be
 kept in sync by hand.
+
+## Supabase free plan
+
+The constraints worth remembering, mostly because each one first shows up as
+something looking broken:
+
+- **Nothing is backed up.** The free plan has no managed backups, and on
+  *every* plan Supabase's database backups exclude Storage objects — the
+  database holds only metadata about them. The photos are therefore the least
+  protected thing here, and the only part that couldn't be retyped.
+- **The schema exists only in the database.** No migration files, so the table
+  in `CLAUDE.md` is its sole written record and nothing detects drift.
+- **Projects pause after ~7 days idle.** A paused project reads as a broken
+  site: empty gallery, failing sign-in. Un-pause from the dashboard before
+  demoing and give it a minute to wake.
+- **Storage caps at 50 MB per file and 1 GB total.** Per-bucket size and MIME
+  limits are a paid feature, which is why `app/pages/upload.vue` enforces both
+  client-side — a UX guard, not a security boundary.
+- **The default auth email service allows 2 messages per hour** and isn't
+  meant for production. See "Auth" above for what that ruled out.
 
 ## Nuxt commands
 
