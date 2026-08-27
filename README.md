@@ -15,8 +15,17 @@ signed-in editors. No maps and no trip records yet.
 Uploading requires a signed-in editor; reading is open to everyone. See
 "Auth" below.
 
-Planned next: trip records, manually drawn routes on a map, and campsite
-details.
+## Planned
+
+- Trip records, with manually drawn routes on a map.
+- Campsite details.
+- **Backups.** There are none right now. Supabase's free plan provides no
+  managed backups at all, and on every plan database backups exclude Storage
+  objects — so the photos need covering separately. The shape is a `pg_dump`
+  of the database plus a copy of the `photos` bucket, both kept off-site.
+
+Free-tier projects also **pause after ~7 days idle**. Un-pause the project in
+the Supabase dashboard before demoing, or the live site will look broken.
 
 ## Stack
 
@@ -71,23 +80,12 @@ fire before anything mounts.
 the page. The `<link rel="manifest">` in `nuxt.config.ts` is what makes the app
 discoverable as installable; remove it and no install affordance ever appears.
 
-### Icons and the launch screen
+### Icons
 
-Everything comes from `public/mkt-badge.jpg`, the Mega Kayak Trip X sticker:
-
-| File | Used for |
-| --- | --- |
-| `icon-192.png`, `icon-512.png` | Manifest icons |
-| `icon-maskable-512.png` | Launchers that crop icons to their own shape |
-| `apple-touch-icon.png` | iOS home screen |
-| `favicon.ico` | Browser tab |
-
-The badge is circle-cropped onto the `#0f172a` background, slightly overscaled
-to hide the benchtop it was photographed on. Android composes the launch
-screen from the 512px icon, `background_color`, and `name` — there is no
-separate splash asset to maintain. iOS only shows a launch image if per-device
-`apple-touch-startup-image` files are supplied; none are, so it flashes the
-background colour instead.
+Every icon is generated from `public/mkt-badge.jpg`, the Mega Kayak Trip X
+sticker — circle-cropped onto the `#0f172a` background and slightly overscaled
+to hide the benchtop it was photographed on. Redo that crop if the set is ever
+regenerated. `nuxt.config.ts` lists which sizes are wired up.
 
 ## Auth
 
