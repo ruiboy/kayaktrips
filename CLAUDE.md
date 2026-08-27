@@ -15,9 +15,13 @@ covers creating, altering, or dropping tables, columns, constraints, indexes,
 and RLS policies; and changing bucket names or the path/folder layout inside a
 bucket.
 
-Proposing is encouraged — write the SQL, sketch the schema, argue for it. What
-needs a yes is *executing* it, or shipping code that writes to a new storage
-layout. Present the proposal and wait.
+**Propose in SQL.** The owner reads DDL fine and prefers it to prose — show the
+statements, add a line only where intent isn't obvious from them. Don't pad it
+into an essay. What needs a yes is *executing* it, or shipping code that writes
+to a new storage layout.
+
+The gate is largely self-enforcing: no DDL credentials are configured here, so
+schema changes get run by the owner in the SQL Editor either way.
 
 Schema outlives everything else here and is expensive to unpick once real trip
 data exists.
