@@ -20,9 +20,8 @@ useHead({
         <p class="eyebrow">Kayak Trips</p>
         <h1>Every put-in, campsite, and paddle &mdash; in one place.</h1>
         <p class="lede">
-          A home for the trips we've paddled: the water, the campsites, the
-          long days, and the photos that came back with us. Have a look
-          around &mdash; or sign in and add your own.
+          For the trips we've paddled: the water, the campsites, the photos
+          that came back with us.
         </p>
         <div class="actions">
           <NuxtLink class="cta" to="/photos">See the photos &rarr;</NuxtLink>
