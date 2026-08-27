@@ -30,11 +30,12 @@ Requires Node 22 (see `.nvmrc`):
 
 ```bash
 nvm use
-npm install --legacy-peer-deps
+npm install
 ```
 
-The `--legacy-peer-deps` flag is required — npm 10's dependency resolver
-crashes on Nuxt 4's peer dependency graph without it.
+`.npmrc` sets `legacy-peer-deps=true`. Don't remove it — npm 10's dependency
+resolver crashes on Nuxt 4's peer dependency graph without it, both locally
+and on Vercel.
 
 Copy `.env.example` to `.env` and fill in the values from your Supabase
 project (Project Settings → API):

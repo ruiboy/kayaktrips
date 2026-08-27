@@ -35,9 +35,9 @@ Storage: a public bucket named `photos`.
 
 - **Node 22** (`.nvmrc`). Several transitive deps require it; Node 20 produces
   engine warnings.
-- **`npm install --legacy-peer-deps` is required.** npm 10's arborist crashes
-  with `Cannot read properties of null (reading 'edgesOut')` on Nuxt 4's peer
-  graph otherwise. This is not optional and not a fluke.
+- **`legacy-peer-deps=true` in `.npmrc` is load-bearing.** Without it npm 10's
+  arborist crashes with `Cannot read properties of null (reading 'edgesOut')`
+  on Nuxt 4's peer graph — locally and in Vercel's build. Don't "tidy" it away.
 - Secrets live in `.env` (gitignored). `.env.example` documents the shape.
 
 ## Scope discipline
