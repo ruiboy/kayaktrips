@@ -53,10 +53,21 @@ async function handleUpload() {
   status.value = 'uploading'
   errorMessage.value = ''
 
-  // Scoping by uploader id keeps ownership legible in the bucket and leaves
-  // room for per-user policies later without a migration.
+  // `useSupabaseUser` gives the decoded JWT payload, not a User object, so the
+  // uploader id is `sub` — there is no `id` claim. JwtPayload has an
+  // `[key: string]: any` index signature, so a wrong claim name typechecks
+  // fine and silently yields undefined; hence the explicit guard.
+  const uploaderId = user.value?.sub
+  if (!uploaderId) {
+    status.value = 'error'
+    errorMessage.value = 'Not signed in — reload the page and try again.'
+    return
+  }
+
+  // Scoping by uploader keeps ownership legible in the bucket and leaves room
+  // for per-user policies later without a migration.
   const ext = file.value.name.split('.').pop()
-  const path = `${user.value?.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`
+  const path = `${uploaderId}/${Date.now()}-${crypto.randomUUID()}.${ext}`
 
   const { error } = await supabase.storage
     .from('photos')
