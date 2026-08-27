@@ -6,9 +6,14 @@ trips.
 
 ## Status: proof of concept
 
+Live at **https://kayaktrips.vercel.app** (installable — "Add to Home Screen").
+
 This is the earliest cut, built to demonstrate the chosen stack working end to
 end. It currently has a landing page and a single photo upload that writes to
 Supabase Storage. No auth, no maps, no trip records yet.
+
+Uploads are currently open to anyone with the URL — see "Before this stays
+public" below.
 
 Planned next: trip records, manually drawn routes on a map, campsite details,
 and login for editors.
@@ -52,6 +57,29 @@ Then:
 ```bash
 npm run dev
 ```
+
+## Before this stays public
+
+The POC deliberately has no auth, which required a Supabase policy allowing
+anonymous writes to the `photos` bucket:
+
+```sql
+create policy "Anon can upload to photos"
+on storage.objects for insert to anon
+with check (bucket_id = 'photos');
+```
+
+That means anyone with the URL can upload to the bucket, against a 1 GB free
+tier. Fine for a short-lived demo, not fine indefinitely. To close it: drop
+that policy and add Supabase Auth, or at minimum set a file size limit and
+allowed MIME types on the bucket.
+
+## Deployment
+
+Hosted on Vercel, auto-deploying from `main`. `SUPABASE_URL` and
+`SUPABASE_KEY` are set in the Vercel project's environment variables — the
+local `.env` is gitignored and never leaves your machine, so the two must be
+kept in sync by hand.
 
 ## Nuxt commands
 
