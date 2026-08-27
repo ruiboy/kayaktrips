@@ -11,6 +11,11 @@ async function signOut() {
   await navigateTo('/')
 }
 
+// Per-bucket size and MIME limits are a paid-plan feature, so this is the only
+// place we can enforce them. It stops honest mistakes, not determined users —
+// the backstop is Supabase's fixed 50 MB cap and the authenticated-only policy.
+const MAX_BYTES = 10 * 1024 * 1024
+
 const file = ref<File | null>(null)
 const status = ref<'idle' | 'uploading' | 'done' | 'error'>('idle')
 const errorMessage = ref('')
@@ -18,9 +23,28 @@ const uploadedUrl = ref('')
 
 function onFileChange(event: Event) {
   const target = event.target as HTMLInputElement
-  file.value = target.files?.[0] ?? null
+  const picked = target.files?.[0] ?? null
+
   status.value = 'idle'
   errorMessage.value = ''
+  file.value = null
+
+  if (!picked) return
+
+  if (!picked.type.startsWith('image/')) {
+    status.value = 'error'
+    errorMessage.value = 'That file isn’t an image.'
+    return
+  }
+
+  if (picked.size > MAX_BYTES) {
+    const mb = (picked.size / 1024 / 1024).toFixed(1)
+    status.value = 'error'
+    errorMessage.value = `That photo is ${mb} MB — the limit is 10 MB.`
+    return
+  }
+
+  file.value = picked
 }
 
 async function handleUpload() {

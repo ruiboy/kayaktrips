@@ -54,6 +54,16 @@ Storage: a public bucket named `photos`.
   storage RLS policy is the real boundary. When adding an editable page, add
   it to `include` *and* make sure a matching policy exists.
 
+## Free-tier limits worth knowing
+
+- **Per-bucket file size limits and MIME restrictions are paid-plan only.**
+  Don't suggest configuring them in the dashboard — the option isn't there.
+  Free tier has a fixed 50 MB per-file cap and 1 GB total. Size and type are
+  therefore enforced client-side in `app/pages/upload.vue`, which is honest
+  about being a UX guard rather than a security boundary.
+- Default auth email service: **2 messages/hour**, non-production.
+- Projects **pause after ~7 days idle** — un-pause before demoing.
+
 ## Scope discipline
 
 This is deliberately a proof of concept: a landing page and one photo upload.
