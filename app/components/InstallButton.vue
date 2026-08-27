@@ -8,9 +8,14 @@ const isIOS = ref(false)
 const isInstalled = ref(false)
 
 onMounted(() => {
-  // iOS Safari never fires `beforeinstallprompt`, so it needs the manual
-  // Share-sheet instructions instead of a button that can't do anything.
-  isIOS.value = /iphone|ipad|ipod/i.test(navigator.userAgent)
+  const ua = navigator.userAgent
+
+  // iOS never fires `beforeinstallprompt` — Apple ships no install API — so it
+  // needs Share-sheet instructions rather than a button that can't do anything.
+  // iPadOS 13+ reports itself as "Macintosh", hence the touch-point check.
+  isIOS.value =
+    /iphone|ipad|ipod/i.test(ua) ||
+    (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
 
   isInstalled.value =
     window.matchMedia('(display-mode: standalone)').matches ||
