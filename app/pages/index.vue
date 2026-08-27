@@ -7,14 +7,25 @@ useHead({
 <template>
   <main class="hero">
     <div class="hero-inner">
-      <p class="eyebrow">Kayak Trips</p>
-      <h1>Every put-in, campsite, and paddle &mdash; in one place.</h1>
-      <p class="lede">
-        This is the earliest cut of the app: a proof of concept to show the
-        planned stack (Nuxt, Supabase, deployed as an installable PWA) is
-        working end to end. Maps, trip logs, and full accounts come next.
-      </p>
-      <NuxtLink class="cta" to="/upload">Try the photo upload &rarr;</NuxtLink>
+      <div class="badge">
+        <img
+          src="/mkt-badge.jpg"
+          width="640"
+          height="640"
+          alt="Mega Kayak Trip X badge: Lock 9 to Customs House, established 2012"
+        />
+      </div>
+
+      <div class="copy">
+        <p class="eyebrow">Kayak Trips</p>
+        <h1>Every put-in, campsite, and paddle &mdash; in one place.</h1>
+        <p class="lede">
+          This is the earliest cut of the app: a proof of concept to show the
+          planned stack (Nuxt, Supabase, deployed as an installable PWA) is
+          working end to end. Maps, trip logs, and full accounts come next.
+        </p>
+        <NuxtLink class="cta" to="/upload">Try the photo upload &rarr;</NuxtLink>
+      </div>
     </div>
   </main>
 </template>
@@ -29,7 +40,41 @@ useHead({
 }
 
 .hero-inner {
-  max-width: 36rem;
+  display: flex;
+  align-items: center;
+  gap: clamp(2rem, 5vw, 4rem);
+  max-width: 58rem;
+}
+
+.badge {
+  flex: 0 0 auto;
+  width: clamp(11rem, 26vw, 18rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 1.25rem 2.5rem rgb(0 0 0 / 0.45);
+}
+
+.badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  /* Slight overscale hides the benchtop the sticker was photographed on,
+     which would otherwise show as a sliver at the circular edge. */
+  transform: scale(1.03);
+}
+
+.copy {
+  min-width: 0;
+}
+
+@media (max-width: 40rem) {
+  .hero-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2rem;
+  }
 }
 
 .eyebrow {
