@@ -63,8 +63,10 @@ const VIEW = '#c084fc'
     <!-- Shelter: a broadleaf rather than a conifer, which at this size would
          read as a second tent. -->
     <template v-else-if="name === 'shelter'">
-      <path d="M12 2.5a6 6 0 0 1 4.2 10.3 4.6 4.6 0 1 1-8.4 0A6 6 0 0 1 12 2.5Z" :stroke="LEAF" />
-      <path d="M12 17.8v3.7" :stroke="WOOD" />
+      <path d="M12 2a5.6 5.6 0 0 1 3.9 9.6 4.3 4.3 0 1 1-7.8 0A5.6 5.6 0 0 1 12 2Z" :stroke="LEAF" />
+      <!-- Tighter canopy and a heavier trunk: at 20px the old one was a hairline
+           and the icon read as a balloon. -->
+      <path d="M12 15.4v6.4" :stroke="WOOD" stroke-width="2.8" />
     </template>
 
     <!-- Aesthetics: what you're looking at. -->
