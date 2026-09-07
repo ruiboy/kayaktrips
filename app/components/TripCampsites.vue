@@ -3,50 +3,19 @@ const props = defineProps<{
   tripId: string
   startDate: string
   endDate: string
+  // Which campsite the map is currently waiting to place, if any.
+  pickingId: string | null
 }>()
 
-// The order matters — it's the order they're scored in on the page and in the
-// form, and it's the order you say them out loud.
-const RATINGS = [
-  { key: 'bankage', label: 'Bankage' },
-  { key: 'campspots', label: 'Campspots' },
-  { key: 'firewood', label: 'Firewood' },
-  { key: 'shelter', label: 'Shelter' },
-  { key: 'aesthetics', label: 'Aesthetics' },
-] as const
-
-type RatingKey = (typeof RATINGS)[number]['key']
-
-type Campsite = {
-  id: string
-  name: string
-  camped_on: string
-  notes: string | null
-  lat: number | null
-  lon: number | null
-  score: number | null
-} & Record<RatingKey, number | null>
-
-const SELECT_COLUMNS =
-  'id, name, camped_on, notes, lat, lon, bankage, campspots, firewood,' +
-  ' shelter, aesthetics, score'
+const emit = defineEmits<{ pick: [string] }>()
 
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 
-const { data: campsites, error } = await useAsyncData(
-  () => `campsites:${props.tripId}`,
-  async () => {
-    const { data, error } = await supabase
-      .from('campsites')
-      .select(SELECT_COLUMNS)
-      .eq('trip_id', props.tripId)
-      .order('camped_on', { ascending: true })
-
-    if (error) throw error
-    return data as Campsite[]
-  },
-)
+// RATINGS, the Campsite type and the query all live in the composable now: the
+// map on the trip page needs the same rows, and sharing the keyed fetch keeps
+// the list and the markers from drifting apart.
+const { data: campsites, error } = await useCampsites(() => props.tripId)
 
 // Form state. `editingId` null means the dialog is composing a new campsite.
 const dialog = ref<HTMLDialogElement | null>(null)
@@ -161,7 +130,7 @@ async function save() {
         .from('campsites')
         .insert({ ...fields, trip_id: props.tripId, created_by: user.value?.sub })
 
-  const { data: saved, error: saveError } = await query.select(SELECT_COLUMNS)
+  const { data: saved, error: saveError } = await query.select(CAMPSITE_COLUMNS)
 
   saving.value = false
 
@@ -267,6 +236,19 @@ function ratingText(value: number | null) {
 
         <div v-if="user" class="site-actions">
           <button class="ghost small" @click="openEdit(site)">Edit</button>
+          <button
+            class="ghost small"
+            :class="{ armed: pickingId === site.id }"
+            @click="emit('pick', site.id)"
+          >
+            {{
+              pickingId === site.id
+                ? 'Click the map…'
+                : site.lat === null
+                  ? 'Set location'
+                  : 'Move location'
+            }}
+          </button>
           <button
             class="delete"
             :disabled="deleting === site.id"
@@ -395,6 +377,12 @@ function ratingText(value: number | null) {
 .ghost.small {
   font-size: 0.8rem;
   padding: 0.2rem 0.55rem;
+}
+
+.ghost.armed {
+  border-color: #38bdf8;
+  background: #38bdf8;
+  color: #0f172a;
 }
 
 .empty {

@@ -57,8 +57,17 @@ expected to cover it.
 - **PWA, not native.** Installable via the browser, no app store, no
   React Native. Revisit only if offline maps or background GPS become real
   requirements.
-- **MapLibre + OpenStreetMap** when maps arrive — free outright, so no reason
-  to spend Mapbox's free tier on a personal project.
+- **MapLibre + OpenStreetMap** — free outright, so no reason to spend Mapbox's
+  free tier on a personal project. Now in use on the trip page:
+  - Raster tiles straight from `tile.openstreetmap.org`, no key and no account.
+    Attribution is a licence condition and MapLibre renders it from the source
+    definition — don't remove it.
+  - `TripMap.vue` imports MapLibre dynamically inside `onMounted`, so the
+    ~500 KB never reaches the server bundle or a page without a map. It needs
+    WebGL2 and throws outright without it, so construction is wrapped and falls
+    back to listing the coordinates as text.
+  - The map is also the coordinate *input* — click to place. There is no other
+    way to set a trip's put-in/take-out, since trips have no edit form.
 
 ## Supabase workflow
 

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+// Components are auto-imported, types are not.
+import type { MapPoint } from '~/components/TripMap.vue'
+
 type TripRow = {
   id: string
   slug: string
@@ -9,6 +12,10 @@ type TripRow = {
   end_place: string | null
   notes: string | null
   badge_photo_id: string | null
+  start_lat: number | null
+  start_lon: number | null
+  end_lat: number | null
+  end_lon: number | null
 }
 
 type PhotoRow = {
@@ -30,7 +37,7 @@ const { data, error } = await useAsyncData(
       .from('trips')
       .select(
         'id, slug, title, start_date, end_date, start_place, end_place, notes,' +
-          ' badge_photo_id',
+          ' badge_photo_id, start_lat, start_lon, end_lat, end_lon',
       )
       .eq('slug', slug.value)
       .maybeSingle()
@@ -128,6 +135,145 @@ async function setBadge(photoId: string) {
   }
 }
 
+// ---- Map -------------------------------------------------------------------
+
+// Shares its fetch with TripCampsites through the keyed composable, so placing
+// a campsite redraws the list and the map from the same rows.
+const { data: campsites } = useCampsites(() => data.value?.trip.id ?? '')
+
+// Held locally so a placed point appears the instant it saves.
+const startPoint = ref<[number, number] | null>(
+  data.value?.trip.start_lat != null && data.value?.trip.start_lon != null
+    ? [data.value.trip.start_lat, data.value.trip.start_lon]
+    : null,
+)
+const endPoint = ref<[number, number] | null>(
+  data.value?.trip.end_lat != null && data.value?.trip.end_lon != null
+    ? [data.value.trip.end_lat, data.value.trip.end_lon]
+    : null,
+)
+
+const mapPoints = computed<MapPoint[]>(() => {
+  const points: MapPoint[] = []
+  const trip = data.value?.trip
+
+  if (startPoint.value) {
+    points.push({
+      id: 'start',
+      kind: 'start',
+      label: trip?.start_place ?? 'Put-in',
+      lat: startPoint.value[0],
+      lon: startPoint.value[1],
+    })
+  }
+
+  ;(campsites.value ?? []).forEach((site, index) => {
+    if (site.lat === null || site.lon === null) return
+    points.push({
+      id: site.id,
+      kind: 'campsite',
+      label: site.name,
+      // Night number, so the markers read as a sequence down the river.
+      sub: String(index + 1),
+      lat: site.lat,
+      lon: site.lon,
+    })
+  })
+
+  if (endPoint.value) {
+    points.push({
+      id: 'end',
+      kind: 'end',
+      label: trip?.end_place ?? 'Take-out',
+      lat: endPoint.value[0],
+      lon: endPoint.value[1],
+    })
+  }
+
+  return points
+})
+
+// null when not picking; otherwise what the next map click sets.
+const picking = ref<{ kind: 'start' | 'end' } | { kind: 'campsite'; id: string } | null>(
+  null,
+)
+const mapError = ref('')
+
+const pickingLabel = computed(() => {
+  if (!picking.value) return ''
+  if (picking.value.kind === 'start') return 'the put-in'
+  if (picking.value.kind === 'end') return 'the take-out'
+  const site = (campsites.value ?? []).find((row) => row.id === picking.value?.id)
+  return site ? site.name : 'the campsite'
+})
+
+function arm(target: NonNullable<typeof picking.value>) {
+  mapError.value = ''
+  // Clicking the same button again disarms, so there's a way out that isn't
+  // placing a point you didn't want.
+  picking.value =
+    picking.value &&
+    picking.value.kind === target.kind &&
+    (target.kind !== 'campsite' ||
+      ('id' in picking.value && picking.value.id === target.id))
+      ? null
+      : target
+}
+
+async function place({ lat, lon }: { lat: number; lon: number }) {
+  const target = picking.value
+  const trip = data.value?.trip
+  if (!target || !trip) return
+
+  // Six decimals is about 10cm — well past what clicking a map can express,
+  // and it keeps the stored numbers readable.
+  const round = (value: number) => Number(value.toFixed(6))
+  const point: [number, number] = [round(lat), round(lon)]
+  picking.value = null
+  mapError.value = ''
+
+  if (target.kind === 'campsite') {
+    const { data: updated, error: updateError } = await supabase
+      .from('campsites')
+      .update({ lat: point[0], lon: point[1] })
+      .eq('id', target.id)
+      .select('id')
+
+    if (updateError || !updated?.length) {
+      mapError.value = updateError?.message ?? 'The database refused that.'
+      return
+    }
+
+    const site = (campsites.value ?? []).find((row) => row.id === target.id)
+    if (site) {
+      site.lat = point[0]
+      site.lon = point[1]
+    }
+    return
+  }
+
+  const fields =
+    target.kind === 'start'
+      ? { start_lat: point[0], start_lon: point[1] }
+      : { end_lat: point[0], end_lon: point[1] }
+
+  const { data: updated, error: updateError } = await supabase
+    .from('trips')
+    .update(fields)
+    .eq('id', trip.id)
+    .select('id')
+
+  if (updateError || !updated?.length) {
+    mapError.value = updateError?.message ?? 'The database refused that.'
+    return
+  }
+
+  if (target.kind === 'start') startPoint.value = point
+  else endPoint.value = point
+}
+
+// ---- Photos ----------------------------------------------------------------
+
 const deleting = ref<string | null>(null)
 const deleteError = ref('')
 
@@ -216,11 +362,57 @@ async function deletePhoto(photo: PhotoRow) {
 
       <p v-if="data.trip.notes" class="notes">{{ data.trip.notes }}</p>
 
+      <section v-if="user || mapPoints.length" class="map-section">
+        <div class="map-head">
+          <h2>Map</h2>
+          <div v-if="user" class="map-actions">
+            <button
+              class="ghost"
+              :class="{ armed: picking?.kind === 'start' }"
+              @click="arm({ kind: 'start' })"
+            >
+              {{ startPoint ? 'Move put-in' : 'Set put-in' }}
+            </button>
+            <button
+              class="ghost"
+              :class="{ armed: picking?.kind === 'end' }"
+              @click="arm({ kind: 'end' })"
+            >
+              {{ endPoint ? 'Move take-out' : 'Set take-out' }}
+            </button>
+          </div>
+        </div>
+
+        <p v-if="picking" class="picking-note">
+          Placing {{ pickingLabel }} &mdash; click the map, or press the button
+          again to cancel.
+        </p>
+        <p v-if="mapError" class="error">Couldn't save that point: {{ mapError }}</p>
+
+        <ClientOnly>
+          <TripMap
+            :points="mapPoints"
+            :picking="Boolean(picking)"
+            @place="place"
+          />
+          <template #fallback>
+            <div class="map-placeholder">Loading the map&hellip;</div>
+          </template>
+        </ClientOnly>
+
+        <p v-if="user && !mapPoints.length" class="empty">
+          Nothing placed yet. Use the buttons above, and "Set location" on a
+          campsite.
+        </p>
+      </section>
+
       <div class="columns">
         <TripCampsites
           :trip-id="data.trip.id"
           :start-date="data.trip.start_date"
           :end-date="data.trip.end_date"
+          :picking-id="picking?.kind === 'campsite' ? picking.id : null"
+          @pick="(id: string) => arm({ kind: 'campsite', id })"
         />
 
         <section class="photos">
@@ -308,6 +500,50 @@ async function deletePhoto(photo: PhotoRow) {
   max-width: 74rem;
   margin: 0 auto;
   padding: 2rem;
+}
+
+.map-section {
+  margin-top: 2.5rem;
+}
+
+.map-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.map-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.map-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ghost.armed {
+  border-color: #38bdf8;
+  background: #38bdf8;
+  color: #0f172a;
+}
+
+.picking-note {
+  margin: 0 0 0.75rem;
+  color: #38bdf8;
+  font-size: 0.9rem;
+}
+
+.map-placeholder {
+  height: clamp(16rem, 45vh, 26rem);
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  display: grid;
+  place-items: center;
+  color: #64748b;
 }
 
 /* Campsites left, photos right. `auto-fit` rather than a fixed two-column
