@@ -219,6 +219,16 @@ async function remove(site: Campsite) {
 function ratingText(value: number | null) {
   return value === null ? '—' : String(value)
 }
+
+// Four bands out of ten, so a column of campsites can be read for quality
+// without reading every number. The number is right there beside it, so the
+// colour reinforces rather than carries the meaning on its own.
+function scoreBand(score: number) {
+  if (score >= 8) return 'great'
+  if (score >= 6) return 'good'
+  if (score >= 4) return 'fair'
+  return 'poor'
+}
 </script>
 
 <template>
@@ -240,7 +250,10 @@ function ratingText(value: number | null) {
             <h3>{{ site.name }}</h3>
             <p class="when">{{ formatDay(site.camped_on) }}</p>
           </div>
-          <p class="score">
+          <p
+            class="score"
+            :class="site.score === null ? undefined : scoreBand(site.score)"
+          >
             <template v-if="site.score !== null">
               <span class="value">{{ site.score }}</span
               ><span class="out-of">/10</span>
@@ -458,6 +471,22 @@ function ratingText(value: number | null) {
   min-width: 5rem;
   padding-left: 1rem;
   text-align: right;
+}
+
+.score.great {
+  color: #4ade80;
+}
+
+.score.good {
+  color: #a3e635;
+}
+
+.score.fair {
+  color: #fbbf24;
+}
+
+.score.poor {
+  color: #fb7185;
 }
 
 /* A fixed box for the number so a 5 and a 6.5 take the same room, and the
