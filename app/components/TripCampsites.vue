@@ -531,8 +531,10 @@ function ratingText(value: number | null) {
 .ratings {
   margin: 1rem 0 0;
   display: grid;
-  grid-template-columns: repeat(3, 4rem);
-  justify-content: start;
+  /* `1fr` rather than a fixed width, so the row fills the card. Still an
+     explicit column count: three can only break 3-and-2, never 4-and-1, and
+     the columns line up between the two rows when it does. */
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem 1rem;
 }
 
@@ -541,7 +543,7 @@ function ratingText(value: number | null) {
    you. */
 @container (min-width: 24rem) {
   .ratings {
-    grid-template-columns: repeat(5, 4rem);
+    grid-template-columns: repeat(5, 1fr);
   }
 }
 
