@@ -274,6 +274,15 @@ function ratingText(value: number | null) {
       </li>
     </ol>
 
+    <!-- The tooltips are desktop-only in practice: there's no hover on a
+         phone, which is where these are most often read. -->
+    <ul v-if="campsites?.length" class="legend">
+      <li v-for="rating in RATINGS" :key="rating.key">
+        <RatingIcon :name="rating.key" :label="rating.label" decorative />
+        <span>{{ rating.label }}</span>
+      </li>
+    </ul>
+
     <!-- Editors only: RLS would refuse the writes anyway, but there's no reason
          to ship the form to everyone who reads the page. -->
     <dialog v-if="user" ref="dialog" class="editor" @click="onDialogClick">
@@ -411,6 +420,8 @@ function ratingText(value: number | null) {
   background: #1e293b;
   border-radius: 0.75rem;
   padding: 1.25rem;
+  /* The card is what the ratings grid measures itself against. */
+  container-type: inline-size;
 }
 
 .site-head {
@@ -457,11 +468,26 @@ function ratingText(value: number | null) {
   white-space: pre-wrap;
 }
 
+/* Explicit columns rather than wrapping. Left to wrap, a 1.5 being wider than
+   a 1 broke one campsite 3-and-2 and the next 4-and-1; and even at a fixed
+   width, wrapping gives you 4-and-1 at any width where four happen to fit.
+   Three columns can only ever break 3-and-2, which is the fallback anywhere
+   container queries aren't supported. */
 .ratings {
   margin: 1rem 0 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
+  display: grid;
+  grid-template-columns: repeat(3, 4rem);
+  justify-content: start;
+  gap: 0.5rem 1rem;
+}
+
+/* 5 × 4rem + 4 × 1rem of gap. Measured against the card, not the viewport —
+   the campsites list is a column whose width the viewport alone doesn't tell
+   you. */
+@container (min-width: 24rem) {
+  .ratings {
+    grid-template-columns: repeat(5, 4rem);
+  }
 }
 
 .ratings > div {
@@ -491,6 +517,23 @@ function ratingText(value: number | null) {
   display: flex;
   gap: 0.5rem;
   margin-top: 1rem;
+}
+
+.legend {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0 0.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .delete {

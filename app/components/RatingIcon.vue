@@ -1,8 +1,14 @@
 <script setup lang="ts">
-defineProps<{
-  name: 'bankage' | 'campspots' | 'firewood' | 'shelter' | 'aesthetics'
-  label: string
-}>()
+// `decorative` is for the legend, where the name is already spelled out beside
+// the icon — without it a screen reader reads "Bankage Bankage".
+const props = withDefaults(
+  defineProps<{
+    name: 'bankage' | 'campspots' | 'firewood' | 'shelter' | 'aesthetics'
+    label: string
+    decorative?: boolean
+  }>(),
+  { decorative: false },
+)
 
 // Colours are per-icon rather than inherited: at this size the shape alone
 // takes a moment to read, and the colour is what tells the five apart at a
@@ -24,13 +30,14 @@ const VIEW = '#c084fc'
   <svg
     class="icon"
     viewBox="0 0 24 24"
-    role="img"
+    :role="props.decorative ? undefined : 'img'"
+    :aria-hidden="props.decorative ? 'true' : undefined"
     fill="none"
     stroke-width="1.9"
     stroke-linecap="round"
     stroke-linejoin="round"
   >
-    <title>{{ label }}</title>
+    <title v-if="!props.decorative">{{ label }}</title>
 
     <!-- Bankage: the shore you land on, water beneath it. -->
     <template v-if="name === 'bankage'">
