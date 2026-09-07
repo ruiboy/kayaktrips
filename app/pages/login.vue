@@ -14,7 +14,7 @@ const errorMessage = ref('')
 
 // Fires both when sign-in succeeds and when someone with a live session
 // lands here directly. `pluck` returns them to the page they were gated
-// out of, falling back to the only editable page we have so far.
+// out of, falling back to the upload page when there's nowhere to return to.
 watch(
   session,
   (value) => {

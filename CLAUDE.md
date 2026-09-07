@@ -85,6 +85,7 @@ authenticated users. Files live at `<uploader-user-id>/<epoch-ms>-<uuid>.<ext>`.
 | `storage_path` | `text` | not null, **unique** — path within the `photos` bucket |
 | `uploaded_by` | `uuid` | FK → `auth.users`, `on delete set null` |
 | `caption` | `text` | nullable |
+| `trip_id` | `uuid` | FK → `public.trips`, `on delete set null`, nullable |
 | `created_at` | `timestamptz` | not null, `now()` |
 
 Design intent worth preserving:
@@ -96,13 +97,45 @@ Design intent worth preserving:
 - **RLS**: public `select` for `anon` and `authenticated`; `insert` restricted
   to `authenticated` with `uploaded_by = auth.uid()`, so nobody can post as
   someone else. No `update`/`delete` policies exist yet — deliberate.
-- When trips arrive, photos gain a nullable `trip_id`; existing rows stay NULL
-  meaning "not filed under a trip". That cheap migration is why this table was
-  built standalone rather than waiting.
+- **`trip_id` is nullable and means "not filed under a trip".** Rows that
+  predate trips stay NULL. Because `photos` has no `update` policy, filing
+  happens at upload time only — the picker on `/upload` sets it on insert.
 
 Orphans are possible by design: the file uploads before the row is inserted, so
 a failed insert leaves an unreferenced file. Harmless — nothing lists the
 bucket — but it means bucket contents and table rows can disagree.
+
+### `public.trips`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | PK, `gen_random_uuid()` |
+| `slug` | `text` | not null, **unique** — derived from the title, addresses `/trips/<slug>` |
+| `title` | `text` | not null |
+| `start_date` | `date` | not null |
+| `end_date` | `date` | not null, `check (end_date >= start_date)` |
+| `start_place` | `text` | nullable — put-in, e.g. "Lock 9" |
+| `end_place` | `text` | nullable — take-out |
+| `start_lat` / `start_lon` | `double precision` | nullable |
+| `end_lat` / `end_lon` | `double precision` | nullable |
+| `notes` | `text` | nullable |
+| `created_by` | `uuid` | FK → `auth.users`, `on delete set null` |
+| `created_at` | `timestamptz` | not null, `now()` |
+
+Design intent worth preserving:
+
+- **Dates, not a duration.** Length is derived (`tripDayCount` in
+  `app/utils/trips.ts`, inclusive of both ends), so campsite dates can later be
+  range-checked against the trip instead of against arithmetic.
+- **Plain `double precision` lat/lon, not PostGIS.** A handful of points per
+  trip and MapLibre wants lng/lat pairs anyway. The columns are nullable and
+  unused by the UI so far — they exist so the map doesn't cost a second round
+  of DDL on a table that by then holds real trips.
+- **RLS**: public `select`; `insert` for `authenticated` with
+  `created_by = auth.uid()`; `update` for `authenticated`. The update policy is
+  ahead of the UI — nothing edits a trip yet — and is there for the badge.
+- Still to come, both one-line alters: `badge_photo_id uuid references
+  public.photos(id) on delete set null`, and a `campsites` table.
 
 ## Environment
 

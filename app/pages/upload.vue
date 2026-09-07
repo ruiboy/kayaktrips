@@ -5,6 +5,39 @@ useHead({
 
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
+const route = useRoute()
+
+type TripOption = {
+  id: string
+  slug: string
+  title: string
+  start_date: string
+  end_date: string
+}
+
+// Photos are filed at upload time — `photos` has no update policy, so a photo
+// that lands unfiled stays unfiled. Hence the picker rather than a later step.
+// Swallows its error rather than throwing: a trips query that fails shouldn't
+// take the upload page down with it. Worst case the picker is empty and the
+// photo lands unfiled.
+const { data: trips } = await useAsyncData('trips-for-upload', async () => {
+  const { data } = await supabase
+    .from('trips')
+    .select('id, slug, title, start_date, end_date')
+    .order('start_date', { ascending: false })
+
+  return (data ?? []) as TripOption[]
+})
+
+// Arriving from a trip page pre-selects that trip; `?trip=` carries the slug
+// because that's what the trip's own URL already has.
+const tripId = ref(
+  trips.value?.find((trip) => trip.slug === route.query.trip)?.id ?? '',
+)
+
+const selectedTrip = computed(
+  () => trips.value?.find((trip) => trip.id === tripId.value) ?? null,
+)
 
 async function signOut() {
   await supabase.auth.signOut()
@@ -87,6 +120,7 @@ async function handleUpload() {
     storage_path: path,
     uploaded_by: uploaderId,
     caption: trimmed || null,
+    trip_id: tripId.value || null,
   })
 
   if (insertError) {
@@ -118,6 +152,16 @@ async function handleUpload() {
       <input type="file" accept="image/*" @change="onFileChange" />
 
       <label class="caption-field">
+        <span>Trip <em>(optional)</em></span>
+        <select v-model="tripId">
+          <option value="">Not filed under a trip</option>
+          <option v-for="trip in trips" :key="trip.id" :value="trip.id">
+            {{ trip.title }} — {{ formatDateRange(trip.start_date, trip.end_date) }}
+          </option>
+        </select>
+      </label>
+
+      <label class="caption-field">
         <span>Caption <em>(optional)</em></span>
         <input
           v-model="caption"
@@ -136,7 +180,16 @@ async function handleUpload() {
       <div v-if="status === 'done'" class="result">
         <p class="success">Uploaded.</p>
         <img :src="uploadedUrl" alt="Uploaded trip photo" />
-        <NuxtLink class="gallery-link" to="/photos">See it in the gallery &rarr;</NuxtLink>
+        <NuxtLink
+          v-if="selectedTrip"
+          class="gallery-link"
+          :to="`/trips/${selectedTrip.slug}`"
+        >
+          See it on {{ selectedTrip.title }} &rarr;
+        </NuxtLink>
+        <NuxtLink v-else class="gallery-link" to="/photos">
+          See it in the gallery &rarr;
+        </NuxtLink>
       </div>
     </div>
   </main>
@@ -265,7 +318,18 @@ button:disabled {
   font-size: 1rem;
 }
 
-.caption-field input:focus {
+.caption-field select {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 0.4rem;
+  padding: 0.6rem 0.7rem;
+  color: #e2e8f0;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.caption-field input:focus,
+.caption-field select:focus {
   outline: 2px solid #38bdf8;
   outline-offset: 1px;
 }
