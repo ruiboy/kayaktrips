@@ -213,59 +213,61 @@ async function deletePhoto(photo: PhotoRow) {
 
       <p v-if="data.trip.notes" class="notes">{{ data.trip.notes }}</p>
 
-      <TripCampsites
-        :trip-id="data.trip.id"
-        :start-date="data.trip.start_date"
-        :end-date="data.trip.end_date"
-      />
+      <div class="columns">
+        <TripCampsites
+          :trip-id="data.trip.id"
+          :start-date="data.trip.start_date"
+          :end-date="data.trip.end_date"
+        />
 
-      <div class="photos-head">
-        <h2>Photos</h2>
-        <div v-if="user" class="photo-actions">
-          <button
-            v-if="data.photos.length"
-            class="ghost"
-            @click="openPicker"
-          >
-            Choose badge
-          </button>
-          <NuxtLink class="ghost" :to="`/upload?trip=${data.trip.slug}`">
-            Add a photo
-          </NuxtLink>
-        </div>
-      </div>
-
-      <p v-if="!data.photos.length" class="empty">
-        Nothing filed under this trip yet.
-      </p>
-
-      <p v-if="badgeError" class="error">Couldn't set the badge: {{ badgeError }}</p>
-      <p v-if="deleteError" class="error">{{ deleteError }}</p>
-
-      <ul v-if="data.photos.length" class="grid">
-        <li v-for="photo in data.photos" :key="photo.id">
-          <a :href="publicUrl(photo.storage_path)" target="_blank" rel="noopener">
-            <img
-              :src="publicUrl(photo.storage_path)"
-              :alt="photo.caption ?? ''"
-              loading="lazy"
-            />
-          </a>
-          <p v-if="photo.caption" class="caption">{{ photo.caption }}</p>
-
-          <div class="tile-foot">
-            <p v-if="photo.id === badgePhotoId" class="is-badge">★ Badge</p>
-            <button
-              v-if="user"
-              class="delete"
-              :disabled="deleting === photo.id"
-              @click="deletePhoto(photo)"
-            >
-              {{ deleting === photo.id ? 'Deleting…' : 'Delete' }}
-            </button>
+        <section class="photos">
+          <div class="photos-head">
+            <h2>Photos</h2>
+            <div v-if="user" class="photo-actions">
+              <button v-if="data.photos.length" class="ghost" @click="openPicker">
+                Choose badge
+              </button>
+              <NuxtLink class="ghost" :to="`/upload?trip=${data.trip.slug}`">
+                Add a photo
+              </NuxtLink>
+            </div>
           </div>
-        </li>
-      </ul>
+
+          <p v-if="!data.photos.length" class="empty">
+            Nothing filed under this trip yet.
+          </p>
+
+          <p v-if="badgeError" class="error">
+            Couldn't set the badge: {{ badgeError }}
+          </p>
+          <p v-if="deleteError" class="error">{{ deleteError }}</p>
+
+          <ul v-if="data.photos.length" class="grid">
+            <li v-for="photo in data.photos" :key="photo.id">
+              <a :href="publicUrl(photo.storage_path)" target="_blank" rel="noopener">
+                <img
+                  :src="publicUrl(photo.storage_path)"
+                  :alt="photo.caption ?? ''"
+                  loading="lazy"
+                />
+              </a>
+              <p v-if="photo.caption" class="caption">{{ photo.caption }}</p>
+
+              <div class="tile-foot">
+                <p v-if="photo.id === badgePhotoId" class="is-badge">★ Badge</p>
+                <button
+                  v-if="user"
+                  class="delete"
+                  :disabled="deleting === photo.id"
+                  @click="deletePhoto(photo)"
+                >
+                  {{ deleting === photo.id ? 'Deleting…' : 'Delete' }}
+                </button>
+              </div>
+            </li>
+          </ul>
+        </section>
+      </div>
 
       <dialog ref="picker" class="picker" @click="onPickerClick">
         <div class="picker-head">
@@ -300,9 +302,20 @@ async function deletePhoto(photo: PhotoRow) {
 
 <style scoped>
 .wrap {
-  max-width: 60rem;
+  max-width: 74rem;
   margin: 0 auto;
   padding: 2rem;
+}
+
+/* Campsites left, photos right. `auto-fit` rather than a fixed two-column
+   rule, so the columns drop under each other whenever there isn't room for
+   both — no breakpoint to keep in sync with the content. */
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr));
+  align-items: start;
+  gap: 2.5rem;
+  margin-top: 2.5rem;
 }
 
 .back {
@@ -362,12 +375,16 @@ h1 {
   white-space: pre-wrap;
 }
 
+.photos {
+  min-width: 0;
+}
+
 .photos-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin: 2.5rem 0 1rem;
+  margin: 0 0 1rem;
 }
 
 .photos-head h2 {
@@ -404,12 +421,14 @@ h1 {
   color: #f87171;
 }
 
+/* Smaller minimum than the full-width gallery, because this now lives in a
+   column: photos wrap onto further rows within it as they pile up. */
 .grid {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
   gap: 1.25rem;
 }
 

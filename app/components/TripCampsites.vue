@@ -252,7 +252,7 @@ function ratingText(value: number | null) {
 
         <dl class="ratings">
           <div v-for="rating in RATINGS" :key="rating.key">
-            <dt>{{ rating.label }}</dt>
+            <dt><RatingIcon :name="rating.key" :label="rating.label" /></dt>
             <dd>{{ ratingText(site[rating.key]) }}<span class="out-of">/2</span></dd>
           </div>
         </dl>
@@ -345,8 +345,10 @@ function ratingText(value: number | null) {
 </template>
 
 <style scoped>
+/* No top margin: the page places this in a column and owns the spacing above
+   it, so the two columns start level. */
 .campsites {
-  margin-top: 2.5rem;
+  min-width: 0;
 }
 
 .head {
@@ -459,18 +461,17 @@ function ratingText(value: number | null) {
   margin: 1rem 0 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.5rem;
+  gap: 0.5rem 1.25rem;
 }
 
 .ratings > div {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.4rem;
 }
 
 .ratings dt {
-  color: #94a3b8;
-  font-size: 0.8rem;
+  display: flex;
 }
 
 .ratings dd {
