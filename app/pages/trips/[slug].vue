@@ -79,6 +79,14 @@ function publicUrl(path: string) {
 const badgePhotoId = ref(data.value?.trip.badge_photo_id ?? null)
 const badgeError = ref('')
 
+// Found among the trip's own photos rather than fetched again, so choosing a
+// new badge updates the header immediately. Nothing in the database stops a
+// badge pointing at another trip's photo; the header just stays empty if it
+// somehow does, which is the honest outcome.
+const badgePhoto = computed(
+  () => data.value?.photos.find((photo) => photo.id === badgePhotoId.value) ?? null,
+)
+
 // A native <dialog> rather than a hand-rolled overlay: Escape to dismiss and
 // the focus trap come with it.
 const picker = ref<HTMLDialogElement | null>(null)
@@ -180,17 +188,28 @@ async function deletePhoto(photo: PhotoRow) {
     <p v-if="error" class="error">Couldn't load this trip: {{ error.message }}</p>
 
     <template v-else-if="data">
-      <h1>{{ data.trip.title }}</h1>
+      <header class="trip-head">
+        <img
+          v-if="badgePhoto"
+          class="badge"
+          :src="publicUrl(badgePhoto.storage_path)"
+          :alt="badgePhoto.caption ?? ''"
+        />
 
-      <p class="meta">
-        {{ formatDateRange(data.trip.start_date, data.trip.end_date) }}
-        &middot;
-        {{ tripDayCount(data.trip.start_date, data.trip.end_date) }} days
-      </p>
+        <div class="trip-head-copy">
+          <h1>{{ data.trip.title }}</h1>
 
-      <p v-if="data.trip.start_place || data.trip.end_place" class="route">
-        {{ data.trip.start_place ?? '?' }} &rarr; {{ data.trip.end_place ?? '?' }}
-      </p>
+          <p class="meta">
+            {{ formatDateRange(data.trip.start_date, data.trip.end_date) }}
+            &middot;
+            {{ tripDayCount(data.trip.start_date, data.trip.end_date) }} days
+          </p>
+
+          <p v-if="data.trip.start_place || data.trip.end_place" class="route">
+            {{ data.trip.start_place ?? '?' }} &rarr; {{ data.trip.end_place ?? '?' }}
+          </p>
+        </div>
+      </header>
 
       <p v-if="data.trip.notes" class="notes">{{ data.trip.notes }}</p>
 
@@ -292,8 +311,38 @@ async function deletePhoto(photo: PhotoRow) {
   font-size: 0.9rem;
 }
 
+.trip-head {
+  display: flex;
+  align-items: center;
+  gap: clamp(1.25rem, 4vw, 2rem);
+  margin-top: 1.5rem;
+}
+
+/* Circular, matching the trips list and the badge on the landing page. */
+.badge {
+  flex: 0 0 auto;
+  width: clamp(6rem, 18vw, 9rem);
+  height: clamp(6rem, 18vw, 9rem);
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  background: #1e293b;
+  box-shadow: 0 0.75rem 1.5rem rgb(0 0 0 / 0.35);
+}
+
+.trip-head-copy {
+  min-width: 0;
+}
+
+@media (max-width: 30rem) {
+  .trip-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 h1 {
-  margin: 1rem 0 0.5rem;
+  margin: 0 0 0.5rem;
 }
 
 .meta {
