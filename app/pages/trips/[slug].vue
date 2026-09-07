@@ -8,6 +8,7 @@ type TripRow = {
   start_place: string | null
   end_place: string | null
   notes: string | null
+  badge_photo_id: string | null
 }
 
 type PhotoRow = {
@@ -28,13 +29,17 @@ const { data, error } = await useAsyncData(
     const { data: trip, error: tripError } = await supabase
       .from('trips')
       .select(
-        'id, slug, title, start_date, end_date, start_place, end_place, notes',
+        'id, slug, title, start_date, end_date, start_place, end_place, notes,' +
+          ' badge_photo_id',
       )
       .eq('slug', slug.value)
       .maybeSingle()
 
     if (tripError) throw tripError
-    if (!trip) throw createError({ statusCode: 404, statusMessage: 'No such trip' })
+    // Returned rather than thrown: `useAsyncData` catches anything the handler
+    // throws into `error`, which would render a soft failure at HTTP 200. The
+    // 404 is raised outside, where it can reach the response.
+    if (!trip) return null
 
     // Filed photos only. Anything uploaded before trips existed has a null
     // trip_id and lives in the general gallery until it's uploaded again.
@@ -51,6 +56,14 @@ const { data, error } = await useAsyncData(
   { watch: [slug] },
 )
 
+if (!error.value && !data.value) {
+  throw createError({
+    statusCode: 404,
+    statusMessage: 'No such trip',
+    fatal: true,
+  })
+}
+
 useHead(() => ({
   title: data.value ? `${data.value.trip.title} — Kayak Trips` : 'Trip — Kayak Trips',
 }))
@@ -59,6 +72,87 @@ useHead(() => ({
 // without rewriting every row.
 function publicUrl(path: string) {
   return supabase.storage.from('photos').getPublicUrl(path).data.publicUrl
+}
+
+// Held locally so the tick moves the moment the update lands, rather than
+// waiting on a refetch of the whole page.
+const badgePhotoId = ref(data.value?.trip.badge_photo_id ?? null)
+const badgeError = ref('')
+
+// A native <dialog> rather than a hand-rolled overlay: Escape to dismiss and
+// the focus trap come with it.
+const picker = ref<HTMLDialogElement | null>(null)
+
+function openPicker() {
+  badgeError.value = ''
+  picker.value?.showModal()
+}
+
+// <dialog> treats a backdrop click as a click on the dialog itself, so this
+// only fires outside the panel.
+function onPickerClick(event: MouseEvent) {
+  if (event.target === picker.value) picker.value?.close()
+}
+
+async function setBadge(photoId: string) {
+  if (!data.value) return
+
+  picker.value?.close()
+  if (photoId === badgePhotoId.value) return
+
+  const previous = badgePhotoId.value
+  badgePhotoId.value = photoId
+  badgeError.value = ''
+
+  const { error: updateError } = await supabase
+    .from('trips')
+    .update({ badge_photo_id: photoId })
+    .eq('id', data.value.trip.id)
+
+  if (updateError) {
+    badgePhotoId.value = previous
+    badgeError.value = updateError.message
+  }
+}
+
+const deleting = ref<string | null>(null)
+const deleteError = ref('')
+
+async function deletePhoto(photo: PhotoRow) {
+  if (!data.value || deleting.value) return
+
+  const label = photo.caption ? `“${photo.caption}”` : 'this photo'
+  if (!confirm(`Delete ${label}? This can't be undone.`)) return
+
+  deleting.value = photo.id
+  deleteError.value = ''
+
+  // Row first, file second. The other order can leave a row pointing at a file
+  // that no longer exists — a broken tile in the gallery. This order can leave
+  // an orphaned file, which nothing lists and nothing renders.
+  const { error: rowError } = await supabase
+    .from('photos')
+    .delete()
+    .eq('id', photo.id)
+
+  if (rowError) {
+    deleting.value = null
+    deleteError.value = rowError.message
+    return
+  }
+
+  const { error: fileError } = await supabase.storage
+    .from('photos')
+    .remove([photo.storage_path])
+
+  data.value.photos = data.value.photos.filter((row) => row.id !== photo.id)
+  // The FK is `on delete set null`, so the trip has already lost its badge.
+  if (badgePhotoId.value === photo.id) badgePhotoId.value = null
+  deleting.value = null
+
+  if (fileError) {
+    deleteError.value = `Removed from the gallery, but the file is still in the bucket: ${fileError.message}`
+  }
 }
 </script>
 
@@ -85,16 +179,28 @@ function publicUrl(path: string) {
 
       <div class="photos-head">
         <h2>Photos</h2>
-        <NuxtLink v-if="user" class="add" :to="`/upload?trip=${data.trip.slug}`">
-          Add a photo
-        </NuxtLink>
+        <div v-if="user" class="photo-actions">
+          <button
+            v-if="data.photos.length"
+            class="ghost"
+            @click="openPicker"
+          >
+            Choose badge
+          </button>
+          <NuxtLink class="ghost" :to="`/upload?trip=${data.trip.slug}`">
+            Add a photo
+          </NuxtLink>
+        </div>
       </div>
 
       <p v-if="!data.photos.length" class="empty">
         Nothing filed under this trip yet.
       </p>
 
-      <ul v-else class="grid">
+      <p v-if="badgeError" class="error">Couldn't set the badge: {{ badgeError }}</p>
+      <p v-if="deleteError" class="error">{{ deleteError }}</p>
+
+      <ul v-if="data.photos.length" class="grid">
         <li v-for="photo in data.photos" :key="photo.id">
           <a :href="publicUrl(photo.storage_path)" target="_blank" rel="noopener">
             <img
@@ -104,8 +210,48 @@ function publicUrl(path: string) {
             />
           </a>
           <p v-if="photo.caption" class="caption">{{ photo.caption }}</p>
+
+          <div class="tile-foot">
+            <p v-if="photo.id === badgePhotoId" class="is-badge">★ Badge</p>
+            <button
+              v-if="user"
+              class="delete"
+              :disabled="deleting === photo.id"
+              @click="deletePhoto(photo)"
+            >
+              {{ deleting === photo.id ? 'Deleting…' : 'Delete' }}
+            </button>
+          </div>
         </li>
       </ul>
+
+      <dialog ref="picker" class="picker" @click="onPickerClick">
+        <div class="picker-head">
+          <h2>Choose the badge</h2>
+          <button class="ghost" @click="picker?.close()">Close</button>
+        </div>
+        <p class="picker-lede">
+          The badge is the photo that stands for this trip in the list.
+        </p>
+
+        <ul class="picker-grid">
+          <li v-for="photo in data.photos" :key="photo.id">
+            <button
+              class="pick"
+              :class="{ current: photo.id === badgePhotoId }"
+              :aria-current="photo.id === badgePhotoId ? 'true' : undefined"
+              @click="setBadge(photo.id)"
+            >
+              <img
+                :src="publicUrl(photo.storage_path)"
+                :alt="photo.caption ?? ''"
+                loading="lazy"
+              />
+              <span>{{ photo.caption || 'Untitled' }}</span>
+            </button>
+          </li>
+        </ul>
+      </dialog>
     </template>
   </main>
 </template>
@@ -157,16 +303,24 @@ h1 {
   font-size: 1.1rem;
 }
 
-.add {
+.photo-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ghost {
   color: #38bdf8;
+  background: none;
   text-decoration: none;
+  font: inherit;
   font-size: 0.9rem;
   border: 1px solid #334155;
   border-radius: 0.4rem;
   padding: 0.35rem 0.75rem;
+  cursor: pointer;
 }
 
-.add:hover {
+.ghost:hover {
   border-color: #38bdf8;
 }
 
@@ -200,5 +354,130 @@ h1 {
   margin: 0.5rem 0 0;
   font-size: 0.9rem;
   line-height: 1.4;
+}
+
+.tile-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  min-height: 1.5rem;
+}
+
+.is-badge {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #38bdf8;
+}
+
+/* Quiet until you reach for it — destructive, but not the point of the page. */
+.delete {
+  margin-left: auto;
+  background: none;
+  border: 1px solid transparent;
+  color: #64748b;
+  border-radius: 0.35rem;
+  padding: 0.15rem 0.5rem;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.delete:hover {
+  border-color: #f87171;
+  color: #f87171;
+}
+
+.delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.picker {
+  width: min(38rem, calc(100vw - 2rem));
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+.picker::backdrop {
+  background: rgb(15 23 42 / 0.7);
+}
+
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.picker-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.picker-lede {
+  margin: 0.5rem 0 1.25rem;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.picker-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: 1rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.pick {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Circular, because that's how the badge renders on the trips list — the
+   preview should show the crop you're actually choosing. */
+.pick img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+  background: #0f172a;
+  border: 2px solid transparent;
+}
+
+.pick:hover img {
+  border-color: #38bdf8;
+}
+
+.pick.current img {
+  border-color: #38bdf8;
+}
+
+.pick span {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.pick.current span {
+  color: #38bdf8;
 }
 </style>

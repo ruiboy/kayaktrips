@@ -96,7 +96,16 @@ Design intent worth preserving:
   outlives the account that posted it. Attribution is lost, the photo isn't.
 - **RLS**: public `select` for `anon` and `authenticated`; `insert` restricted
   to `authenticated` with `uploaded_by = auth.uid()`, so nobody can post as
-  someone else. No `update`/`delete` policies exist yet — deliberate.
+  someone else; `delete` for `authenticated` with no ownership check, matching
+  the update policy on `trips` — a handful of trusted editors, and a photo
+  whose uploader was deleted has `uploaded_by` NULL and would otherwise be
+  undeletable. There is still no `update` policy, which is why filing is
+  upload-time only.
+- **Deleting removes the row first, then the storage object**
+  (`app/pages/trips/[slug].vue`). The other order can leave a row pointing at a
+  missing file — a broken tile; this order can only leave an orphaned file,
+  which nothing lists. Deleting also needs a matching `delete` policy on
+  `storage.objects` for `bucket_id = 'photos'`.
 - **`trip_id` is nullable and means "not filed under a trip".** Rows that
   predate trips stay NULL. Because `photos` has no `update` policy, filing
   happens at upload time only — the picker on `/upload` sets it on insert.
@@ -119,6 +128,7 @@ bucket — but it means bucket contents and table rows can disagree.
 | `start_lat` / `start_lon` | `double precision` | nullable |
 | `end_lat` / `end_lon` | `double precision` | nullable |
 | `notes` | `text` | nullable |
+| `badge_photo_id` | `uuid` | FK → `public.photos`, constraint `trips_badge_photo_fkey`, `on delete set null` |
 | `created_by` | `uuid` | FK → `auth.users`, `on delete set null` |
 | `created_at` | `timestamptz` | not null, `now()` |
 
@@ -132,10 +142,15 @@ Design intent worth preserving:
   unused by the UI so far — they exist so the map doesn't cost a second round
   of DDL on a table that by then holds real trips.
 - **RLS**: public `select`; `insert` for `authenticated` with
-  `created_by = auth.uid()`; `update` for `authenticated`. The update policy is
-  ahead of the UI — nothing edits a trip yet — and is there for the badge.
-- Still to come, both one-line alters: `badge_photo_id uuid references
-  public.photos(id) on delete set null`, and a `campsites` table.
+  `created_by = auth.uid()`; `update` for `authenticated`, which is what setting
+  the badge uses. Nothing edits a trip's own fields yet.
+- **The badge FK is named explicitly.** `photos` sits on both ends of a
+  relationship with `trips` now — `photos.trip_id` one way, `badge_photo_id`
+  the other — so PostgREST can't infer which is meant and embeds must name the
+  constraint: `badge:photos!trips_badge_photo_fkey(storage_path)`.
+- Nothing constrains the badge to a photo *of* that trip; only the UI does.
+  A composite FK or trigger would enforce it, and isn't worth it yet.
+- Still to come: a `campsites` table.
 
 ## Environment
 
