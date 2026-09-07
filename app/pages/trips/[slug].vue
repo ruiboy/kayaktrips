@@ -194,6 +194,12 @@ async function deletePhoto(photo: PhotoRow) {
 
       <p v-if="data.trip.notes" class="notes">{{ data.trip.notes }}</p>
 
+      <TripCampsites
+        :trip-id="data.trip.id"
+        :start-date="data.trip.start_date"
+        :end-date="data.trip.end_date"
+      />
+
       <div class="photos-head">
         <h2>Photos</h2>
         <div v-if="user" class="photo-actions">

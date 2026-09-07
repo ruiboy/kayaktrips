@@ -18,6 +18,26 @@ export function tripDayCount(startIso: string, endIso: string): number {
   return Math.round((endUtc - startUtc) / 86_400_000) + 1
 }
 
+// Stays in the 'YYYY-MM-DD' domain the `date` columns and `<input type="date">`
+// both speak, so nothing has to round-trip through a timezone to add a night.
+export function isoDayAfter(iso: string): string {
+  const day = parseDay(iso)
+  day.setDate(day.getDate() + 1)
+  const month = String(day.getMonth() + 1).padStart(2, '0')
+  const date = String(day.getDate()).padStart(2, '0')
+  return `${day.getFullYear()}-${month}-${date}`
+}
+
+const dayFormat = new Intl.DateTimeFormat('en-AU', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+})
+
+export function formatDay(iso: string): string {
+  return dayFormat.format(parseDay(iso))
+}
+
 const rangeFormat = new Intl.DateTimeFormat('en-AU', {
   day: 'numeric',
   month: 'short',

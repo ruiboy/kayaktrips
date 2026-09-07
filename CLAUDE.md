@@ -150,7 +150,38 @@ Design intent worth preserving:
   constraint: `badge:photos!trips_badge_photo_fkey(storage_path)`.
 - Nothing constrains the badge to a photo *of* that trip; only the UI does.
   A composite FK or trigger would enforce it, and isn't worth it yet.
-- Still to come: a `campsites` table.
+
+### `public.campsites`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `uuid` | PK, `gen_random_uuid()` |
+| `trip_id` | `uuid` | not null, FK → `public.trips`, **`on delete cascade`** |
+| `name` | `text` | not null |
+| `camped_on` | `date` | not null — the night camped |
+| `notes` | `text` | nullable |
+| `lat` / `lon` | `double precision` | nullable |
+| `bankage`, `campspots`, `firewood`, `shelter`, `aesthetics` | `numeric(2,1)` | nullable, `check (… in (0, 0.5, 1, 1.5, 2))` |
+| `score` | `numeric(3,1)` | generated, stored — the sum of the five |
+| `created_by` | `uuid` | FK → `auth.users`, `on delete set null` |
+| `created_at` | `timestamptz` | not null, `now()` |
+
+Design intent worth preserving:
+
+- **`on delete cascade`, unlike `photos.trip_id`.** A campsite has no meaning
+  apart from its trip; a photo is a record in its own right and survives.
+- **Ratings as five columns with an `IN` list**, not half-point integers and
+  not JSON. The check enforces range and half-step at once and reads as the
+  rule it is. A sixth category is an `add column`.
+- **Ratings are nullable and `score` is a plain sum**, so any missing component
+  makes `score` NULL. An unrated site sorts as unrated rather than as zero.
+- **Nothing constrains `camped_on` to the trip's dates** — a `CHECK` can't
+  reach another table. `TripCampsites.vue` warns but still saves, because
+  camping the night before the official put-in genuinely happens.
+- **`camped_on`, not `date`** — `date` is a type name and needs quoting in too
+  many places.
+- No `unique (trip_id, camped_on)`: it would block recording both the site you
+  bailed on at dusk and the one you slept at.
 
 ## Environment
 
