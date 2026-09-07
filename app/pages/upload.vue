@@ -39,6 +39,13 @@ const selectedTrip = computed(
   () => trips.value?.find((trip) => trip.id === tripId.value) ?? null,
 )
 
+// A badge belongs to a trip, so the option only means anything once one is
+// picked — clearing the trip clears the intent with it.
+const makeBadge = ref(false)
+watch(tripId, (value) => {
+  if (!value) makeBadge.value = false
+})
+
 async function signOut() {
   await supabase.auth.signOut()
   await navigateTo('/')
@@ -53,6 +60,7 @@ const file = ref<File | null>(null)
 const caption = ref('')
 const status = ref<'idle' | 'uploading' | 'done' | 'error'>('idle')
 const errorMessage = ref('')
+const badgeWarning = ref('')
 const uploadedUrl = ref('')
 
 function onFileChange(event: Event) {
@@ -116,17 +124,38 @@ async function handleUpload() {
   // The row is what the gallery reads, not the bucket. If this fails the file
   // is orphaned — invisible rather than broken, but worth surfacing.
   const trimmed = caption.value.trim()
-  const { error: insertError } = await supabase.from('photos').insert({
-    storage_path: path,
-    uploaded_by: uploaderId,
-    caption: trimmed || null,
-    trip_id: tripId.value || null,
-  })
+  // Returning the row because the badge needs its id: the trip points at the
+  // photo, not the other way round, so there's nothing to point at until the
+  // insert has happened.
+  const { data: inserted, error: insertError } = await supabase
+    .from('photos')
+    .insert({
+      storage_path: path,
+      uploaded_by: uploaderId,
+      caption: trimmed || null,
+      trip_id: tripId.value || null,
+    })
+    .select('id')
+    .single()
 
   if (insertError) {
     status.value = 'error'
     errorMessage.value = `Uploaded, but not recorded: ${insertError.message}`
     return
+  }
+
+  // Non-fatal on purpose: the photo is filed either way, and a failed badge
+  // update shouldn't read as a failed upload.
+  badgeWarning.value = ''
+  if (makeBadge.value && tripId.value && inserted) {
+    const { error: badgeError } = await supabase
+      .from('trips')
+      .update({ badge_photo_id: (inserted as { id: string }).id })
+      .eq('id', tripId.value)
+
+    if (badgeError) {
+      badgeWarning.value = `Uploaded, but not set as the badge: ${badgeError.message}`
+    }
   }
 
   const { data } = supabase.storage.from('photos').getPublicUrl(path)
@@ -161,6 +190,11 @@ async function handleUpload() {
         </select>
       </label>
 
+      <label v-if="tripId" class="badge-field">
+        <input v-model="makeBadge" type="checkbox" />
+        <span>Use as this trip's badge</span>
+      </label>
+
       <label class="caption-field">
         <span>Caption <em>(optional)</em></span>
         <input
@@ -179,6 +213,7 @@ async function handleUpload() {
 
       <div v-if="status === 'done'" class="result">
         <p class="success">Uploaded.</p>
+        <p v-if="badgeWarning" class="error">{{ badgeWarning }}</p>
         <img :src="uploadedUrl" alt="Uploaded trip photo" />
         <NuxtLink
           v-if="selectedTrip"
@@ -326,6 +361,22 @@ button:disabled {
   color: #e2e8f0;
   font-size: 1rem;
   font-family: inherit;
+}
+
+.badge-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.badge-field input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #38bdf8;
+  cursor: pointer;
 }
 
 .caption-field input:focus,

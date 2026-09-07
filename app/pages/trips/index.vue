@@ -11,16 +11,23 @@ type TripRow = {
   end_date: string
   start_place: string | null
   end_place: string | null
+  badge: { storage_path: string } | null
 }
 
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 
 // Public read, so this renders server-side for anonymous visitors too.
+// `photos` sits on both ends of a relationship with `trips` — `photos.trip_id`
+// one way, `badge_photo_id` the other — so the embed names the constraint;
+// without it PostgREST can't tell which relationship is meant.
 const { data: trips, error } = await useAsyncData('trips', async () => {
   const { data, error } = await supabase
     .from('trips')
-    .select('id, slug, title, start_date, end_date, start_place, end_place')
+    .select(
+      'id, slug, title, start_date, end_date, start_place, end_place,' +
+        ' badge:photos!trips_badge_photo_fkey(storage_path)',
+    )
     .order('start_date', { ascending: false })
 
   if (error) throw error
@@ -30,6 +37,13 @@ const { data: trips, error } = await useAsyncData('trips', async () => {
 function route(trip: TripRow) {
   if (!trip.start_place && !trip.end_place) return ''
   return `${trip.start_place ?? '?'} → ${trip.end_place ?? '?'}`
+}
+
+// Derived at render time, like everywhere else — rows hold paths, not URLs.
+function badgeUrl(trip: TripRow) {
+  if (!trip.badge) return ''
+  return supabase.storage.from('photos').getPublicUrl(trip.badge.storage_path)
+    .data.publicUrl
 }
 </script>
 
@@ -53,13 +67,24 @@ function route(trip: TripRow) {
     <ul v-else class="list">
       <li v-for="trip in trips" :key="trip.id">
         <NuxtLink :to="`/trips/${trip.slug}`">
-          <h2>{{ trip.title }}</h2>
-          <p class="meta">
-            {{ formatDateRange(trip.start_date, trip.end_date) }}
-            &middot;
-            {{ tripDayCount(trip.start_date, trip.end_date) }} days
-          </p>
-          <p v-if="route(trip)" class="route">{{ route(trip) }}</p>
+          <img
+            v-if="trip.badge"
+            class="badge"
+            :src="badgeUrl(trip)"
+            alt=""
+            loading="lazy"
+          />
+          <div v-else class="badge badge-empty" aria-hidden="true" />
+
+          <div class="copy">
+            <h2>{{ trip.title }}</h2>
+            <p class="meta">
+              {{ formatDateRange(trip.start_date, trip.end_date) }}
+              &middot;
+              {{ tripDayCount(trip.start_date, trip.end_date) }} days
+            </p>
+            <p v-if="route(trip)" class="route">{{ route(trip) }}</p>
+          </div>
         </NuxtLink>
       </li>
     </ul>
@@ -123,13 +148,34 @@ h1 {
 }
 
 .list a {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
   background: #1e293b;
   border: 1px solid transparent;
   border-radius: 0.75rem;
   padding: 1.25rem;
   text-decoration: none;
   color: inherit;
+}
+
+/* Circular, echoing the badge on the landing page — these are the same idea. */
+.badge {
+  flex: 0 0 auto;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  background: #0f172a;
+}
+
+.badge-empty {
+  border: 1px dashed #334155;
+}
+
+.copy {
+  min-width: 0;
 }
 
 .list a:hover {
