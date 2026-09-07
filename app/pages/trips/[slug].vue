@@ -104,14 +104,19 @@ async function setBadge(photoId: string) {
   badgePhotoId.value = photoId
   badgeError.value = ''
 
-  const { error: updateError } = await supabase
+  // `.select()` for the same reason as the delete below: an update RLS won't
+  // allow matches no rows rather than erroring, so without the returned row a
+  // refusal is indistinguishable from success.
+  const { data: updated, error: updateError } = await supabase
     .from('trips')
     .update({ badge_photo_id: photoId })
     .eq('id', data.value.trip.id)
+    .select('id')
 
-  if (updateError) {
+  if (updateError || !updated?.length) {
     badgePhotoId.value = previous
-    badgeError.value = updateError.message
+    badgeError.value =
+      updateError?.message ?? 'the database refused the change. Are you still signed in?'
   }
 }
 
@@ -130,14 +135,26 @@ async function deletePhoto(photo: PhotoRow) {
   // Row first, file second. The other order can leave a row pointing at a file
   // that no longer exists — a broken tile in the gallery. This order can leave
   // an orphaned file, which nothing lists and nothing renders.
-  const { error: rowError } = await supabase
+  //
+  // `.select()` matters: RLS doesn't refuse a delete, it just matches no rows,
+  // so a blocked delete returns 204 with no error and looks identical to a
+  // successful one. The returned rows are the only evidence anything happened.
+  const { data: removed, error: rowError } = await supabase
     .from('photos')
     .delete()
     .eq('id', photo.id)
+    .select('id')
 
   if (rowError) {
     deleting.value = null
     deleteError.value = rowError.message
+    return
+  }
+
+  if (!removed?.length) {
+    deleting.value = null
+    deleteError.value =
+      "That photo wasn't deleted — the database refused it. There's no delete policy on `photos` for your account."
     return
   }
 
