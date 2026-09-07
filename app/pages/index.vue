@@ -6,6 +6,10 @@ useHead({
 
 <template>
   <main class="hero">
+    <div class="corner">
+      <AccountControl />
+    </div>
+
     <div class="hero-inner">
       <div class="badge">
         <img
@@ -36,11 +40,20 @@ useHead({
 
 <style scoped>
 .hero {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2rem;
+}
+
+/* The hero is vertically centred, so there's no top row to sit in — but this
+   is the page an installed app opens on, and it's where you need the way in. */
+.corner {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
 }
 
 .hero-inner {

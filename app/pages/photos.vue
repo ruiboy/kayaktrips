@@ -11,6 +11,7 @@ type PhotoRow = {
 }
 
 const supabase = useSupabaseClient()
+const user = useSupabaseUser()
 
 // Public read, so this renders server-side for anonymous visitors too.
 const { data: photos, error } = await useAsyncData('photos', async () => {
@@ -43,7 +44,14 @@ function formatDate(iso: string) {
 
 <template>
   <main class="wrap">
-    <NuxtLink class="back" to="/">&larr; Back</NuxtLink>
+    <div class="topbar">
+      <NuxtLink class="back" to="/">&larr; Back</NuxtLink>
+      <div class="topbar-right">
+        <NuxtLink v-if="user" class="add" to="/upload">Add a photo</NuxtLink>
+        <AccountControl />
+      </div>
+    </div>
+
     <h1>Photos</h1>
 
     <p v-if="error" class="error">Couldn't load photos: {{ error.message }}</p>
@@ -75,10 +83,38 @@ function formatDate(iso: string) {
   padding: 2rem;
 }
 
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
 .back {
   color: #38bdf8;
   text-decoration: none;
   font-size: 0.9rem;
+}
+
+.add {
+  color: #38bdf8;
+  text-decoration: none;
+  font-size: 0.8rem;
+  border: 1px solid #334155;
+  border-radius: 0.35rem;
+  padding: 0.25rem 0.6rem;
+}
+
+.add:hover {
+  border-color: #38bdf8;
 }
 
 h1 {

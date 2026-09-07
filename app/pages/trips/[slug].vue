@@ -183,7 +183,10 @@ async function deletePhoto(photo: PhotoRow) {
 
 <template>
   <main class="wrap">
-    <NuxtLink class="back" to="/trips">&larr; All trips</NuxtLink>
+    <div class="topbar">
+      <NuxtLink class="back" to="/trips">&larr; All trips</NuxtLink>
+      <AccountControl />
+    </div>
 
     <p v-if="error" class="error">Couldn't load this trip: {{ error.message }}</p>
 
@@ -316,6 +319,14 @@ async function deletePhoto(photo: PhotoRow) {
   align-items: start;
   gap: 2.5rem;
   margin-top: 2.5rem;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .back {

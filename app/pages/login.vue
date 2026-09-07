@@ -6,6 +6,15 @@ useHead({
 const supabase = useSupabaseClient()
 const session = useSupabaseSession()
 const redirectInfo = useSupabaseCookieRedirect()
+const route = useRoute()
+
+// `?next=` is set by the Sign in link, which knows where you were. Only a
+// same-site path is accepted — a bare `//host` would be read as a protocol-
+// relative URL and send you off the site.
+function requestedNext() {
+  const next = String(route.query.next ?? '')
+  return next.startsWith('/') && !next.startsWith('//') ? next : ''
+}
 
 const email = ref('')
 const password = ref('')
@@ -18,7 +27,7 @@ const errorMessage = ref('')
 watch(
   session,
   (value) => {
-    if (value) navigateTo(redirectInfo.pluck() || '/upload')
+    if (value) navigateTo(redirectInfo.pluck() || requestedNext() || '/upload')
   },
   { immediate: true },
 )

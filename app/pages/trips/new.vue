@@ -80,7 +80,10 @@ async function createTrip() {
 
 <template>
   <main class="wrap">
-    <NuxtLink class="back" to="/trips">&larr; All trips</NuxtLink>
+    <div class="topbar">
+      <NuxtLink class="back" to="/trips">&larr; All trips</NuxtLink>
+      <AccountControl />
+    </div>
     <h1>New trip</h1>
     <p class="lede">Where you put in, where you took out, and how long it took.</p>
 
@@ -148,6 +151,14 @@ async function createTrip() {
   max-width: 34rem;
   margin: 0 auto;
   padding: 2rem;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .back {

@@ -46,11 +46,6 @@ watch(tripId, (value) => {
   if (!value) makeBadge.value = false
 })
 
-async function signOut() {
-  await supabase.auth.signOut()
-  await navigateTo('/')
-}
-
 // Per-bucket size and MIME limits are a paid-plan feature, so this is the only
 // place we can enforce them. It stops honest mistakes, not determined users —
 // the backstop is Supabase's fixed 50 MB cap and the authenticated-only policy.
@@ -168,10 +163,7 @@ async function handleUpload() {
   <main class="wrap">
     <div class="topbar">
       <NuxtLink class="back" to="/">&larr; Back</NuxtLink>
-      <span v-if="user" class="who">
-        {{ user.email }}
-        <button class="signout" @click="signOut">Sign out</button>
-      </span>
+      <AccountControl />
     </div>
 
     <h1>Upload a trip photo</h1>
@@ -249,29 +241,6 @@ async function handleUpload() {
   color: #38bdf8;
   text-decoration: none;
   font-size: 0.9rem;
-}
-
-.who {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: #94a3b8;
-  font-size: 0.85rem;
-}
-
-.signout {
-  background: none;
-  border: 1px solid #334155;
-  color: #94a3b8;
-  border-radius: 0.35rem;
-  padding: 0.25rem 0.6rem;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.signout:hover {
-  border-color: #38bdf8;
-  color: #38bdf8;
 }
 
 h1 {

@@ -51,7 +51,10 @@ function badgeUrl(trip: TripRow) {
   <main class="wrap">
     <div class="topbar">
       <NuxtLink class="back" to="/">&larr; Back</NuxtLink>
-      <NuxtLink v-if="user" class="new" to="/trips/new">New trip</NuxtLink>
+      <div class="topbar-right">
+        <NuxtLink v-if="user" class="new" to="/trips/new">New trip</NuxtLink>
+        <AccountControl />
+      </div>
     </div>
 
     <h1>Trips</h1>
@@ -103,6 +106,14 @@ function badgeUrl(trip: TripRow) {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
 }
 
 .back,
