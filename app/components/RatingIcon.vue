@@ -21,6 +21,9 @@ const FLAME = '#fb923c'
 const WOOD = '#b45309'
 const LEAF = '#4ade80'
 const VIEW = '#c084fc'
+// Pink rather than orange: orange is the campfire, and at 20px the two icons
+// were reading as the same thing. Pink against the violet hills is dusk.
+const SUN = '#f472b6'
 </script>
 
 <template>
@@ -69,9 +72,10 @@ const VIEW = '#c084fc'
       <path d="M12 15.4v6.4" :stroke="WOOD" stroke-width="2.8" />
     </template>
 
-    <!-- Aesthetics: what you're looking at. -->
+    <!-- Aesthetics: what you're looking at. The sun is filled rather than
+         outlined — at this size a ring reads as a hole, not a sun. -->
     <template v-else>
-      <circle cx="17.5" cy="6.5" r="2.5" :stroke="VIEW" />
+      <circle cx="17" cy="7" r="3" :stroke="SUN" :fill="SUN" />
       <path d="M2.5 19 9 9.5l3.5 5 2.5-3 6.5 7.5Z" :stroke="VIEW" />
     </template>
   </svg>

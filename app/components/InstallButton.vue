@@ -6,6 +6,7 @@ const prompt = useState<BeforeInstallPromptEvent | null>(
 
 const isIOS = ref(false)
 const isInstalled = ref(false)
+const mounted = ref(false)
 
 onMounted(() => {
   const ua = navigator.userAgent
@@ -21,6 +22,21 @@ onMounted(() => {
     window.matchMedia('(display-mode: standalone)').matches ||
     // Non-standard, iOS Safari only.
     (navigator as { standalone?: boolean }).standalone === true
+
+  mounted.value = true
+})
+
+// `beforeinstallprompt` is Chromium-only, so Firefox and desktop Safari fire
+// nothing and used to be shown nothing — the app looked as though it simply
+// wasn't installable. They can still install it, just from a menu.
+//
+// The prompt can also arrive after mount, and Chromium suppresses it for a
+// while after an uninstall, so a Chromium browser can sit in this state too.
+// Generic wording covers all of them.
+const mode = computed(() => {
+  if (!mounted.value || isInstalled.value) return 'none'
+  if (prompt.value) return 'prompt'
+  return isIOS.value ? 'ios' : 'menu'
 })
 
 async function install() {
@@ -36,15 +52,20 @@ async function install() {
 </script>
 
 <template>
-  <!-- Nothing to show once installed, or in browsers with no install path. -->
-  <div v-if="!isInstalled && (prompt || isIOS)" class="install">
-    <button v-if="prompt" class="install-link" @click="install">
+  <!-- Nothing to show once it's already installed. -->
+  <div v-if="mode !== 'none'" class="install">
+    <button v-if="mode === 'prompt'" class="install-link" @click="install">
       Add this to your home screen
     </button>
 
-    <p v-else class="ios-hint">
+    <p v-else-if="mode === 'ios'" class="hint">
       To add this to your home screen: tap
       <strong>Share</strong> then <strong>Add to Home Screen</strong>.
+    </p>
+
+    <p v-else class="hint">
+      To add this to your home screen, open your browser's menu and choose
+      <strong>Install</strong> or <strong>Add to Home screen</strong>.
     </p>
   </div>
 </template>
@@ -72,14 +93,14 @@ async function install() {
   text-decoration-color: #38bdf8;
 }
 
-.ios-hint {
+.hint {
   margin: 0;
   color: #64748b;
   font-size: 0.85rem;
   line-height: 1.5;
 }
 
-.ios-hint strong {
+.hint strong {
   color: #94a3b8;
   font-weight: 600;
 }
