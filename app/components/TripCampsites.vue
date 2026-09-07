@@ -242,7 +242,8 @@ function ratingText(value: number | null) {
           </div>
           <p class="score">
             <template v-if="site.score !== null">
-              {{ site.score }}<span class="out-of">/10</span>
+              <span class="value">{{ site.score }}</span
+              ><span class="out-of">/10</span>
             </template>
             <span v-else class="unrated">Unrated</span>
           </p>
@@ -253,7 +254,10 @@ function ratingText(value: number | null) {
         <dl class="ratings">
           <div v-for="rating in RATINGS" :key="rating.key">
             <dt><RatingIcon :name="rating.key" :label="rating.label" /></dt>
-            <dd>{{ ratingText(site[rating.key]) }}<span class="out-of">/2</span></dd>
+            <dd>
+              <span class="value">{{ ratingText(site[rating.key]) }}</span
+              ><span class="out-of">/2</span>
+            </dd>
           </div>
         </dl>
 
@@ -450,6 +454,23 @@ function ratingText(value: number | null) {
   white-space: nowrap;
 }
 
+/* A fixed box for the number so a 5 and a 6.5 take the same room, and the
+   "/10" and "/2" sit at the same offset on every card instead of sliding
+   with the digit count. */
+.value {
+  display: inline-block;
+  min-width: 1.9rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Right-aligned, so "1" and "1.5" both sit against their "/2" and the slack
+   falls after the icon. Left-aligned the number floats away from the
+   denominator and the pair stops reading as one figure. */
+.ratings .value {
+  min-width: 1.6rem;
+}
+
 .out-of {
   color: #64748b;
   font-size: 0.75em;
@@ -519,13 +540,15 @@ function ratingText(value: number | null) {
   margin-top: 1rem;
 }
 
+/* Spread across the column: equal cells that fill the width and drop to fewer
+   per row when there isn't space, rather than huddling at the left. */
 .legend {
   list-style: none;
   margin: 1rem 0 0;
   padding: 0 0.25rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+  gap: 0.5rem;
   color: #64748b;
   font-size: 0.75rem;
 }
