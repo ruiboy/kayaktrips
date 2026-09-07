@@ -22,6 +22,7 @@ const emit = defineEmits<{ place: [{ lat: number; lon: number }] }>()
 const container = ref<HTMLElement | null>(null)
 let map: MapLibreMap | null = null
 let markers: Marker[] = []
+let resizeObserver: ResizeObserver | null = null
 
 // Raster OpenStreetMap rather than a vector style: free outright, no key, no
 // account. Attribution is required by the licence and MapLibre renders it from
@@ -113,6 +114,13 @@ onMounted(async () => {
     emit('place', { lat: event.lngLat.lat, lon: event.lngLat.lng })
   })
 
+  // MapLibre sizes its canvas once and then only follows the *window*. This
+  // container changes on its own — the columns collapsing, the picking note
+  // appearing, a stylesheet arriving late — and without this the canvas keeps
+  // its old dimensions and the map renders into part of the box.
+  resizeObserver = new ResizeObserver(() => map?.resize())
+  resizeObserver.observe(container.value as HTMLElement)
+
   await new Promise<void>((resolve) => map?.once('load', () => resolve()))
   await draw(maplibre)
 
@@ -124,6 +132,8 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
   // Each map holds a WebGL context and browsers cap how many may exist, so
   // leaving one behind eventually blanks every map on the site.
   map?.remove()
@@ -149,16 +159,23 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* The same panel the campsite and photo cards use. A hairline border alone
+   vanished against the bright tiles; a padded dark surround is what actually
+   separates the map from the page. */
 .map-wrap {
   position: relative;
-  border-radius: 0.75rem;
-  overflow: hidden;
+  background: #1e293b;
   border: 1px solid #334155;
+  border-radius: 0.75rem;
+  padding: 0.5rem;
 }
 
 .map {
   width: 100%;
   height: clamp(16rem, 45vh, 26rem);
+  border-radius: 0.5rem;
+  /* Clips the canvas and the map's own controls to the rounded corners. */
+  overflow: hidden;
 }
 
 .picking .map {
@@ -192,7 +209,7 @@ onBeforeUnmount(() => {
 
 .hint {
   position: absolute;
-  top: 0.75rem;
+  top: 1.25rem;
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
