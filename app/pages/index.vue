@@ -9,10 +9,10 @@ useHead({
     <div class="hero-inner">
       <div class="badge">
         <img
-          src="/mkt-badge.jpg"
-          width="640"
-          height="640"
-          alt="Mega Kayak Trip X badge: Lock 9 to Customs House, established 2012"
+          src="/mkt-crew.png"
+          width="960"
+          height="948"
+          alt="Mega Kayak Trip Crew badge: a kayak on the river, paddles crossed over a campfire"
         />
       </div>
 
@@ -50,23 +50,20 @@ useHead({
   max-width: 58rem;
 }
 
+/* The crew badge is a shield, not a disc, and its background has been cut out
+   — so no circular mask and no overscale, both of which would clip the
+   lettering and the paddle tips. The shadow follows the artwork's own edge
+   rather than a box. */
 .badge {
   flex: 0 0 auto;
   width: clamp(11rem, 26vw, 18rem);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  overflow: hidden;
-  box-shadow: 0 1.25rem 2.5rem rgb(0 0 0 / 0.45);
 }
 
 .badge img {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
   display: block;
-  /* Slight overscale hides the benchtop the sticker was photographed on,
-     which would otherwise show as a sliver at the circular edge. */
-  transform: scale(1.03);
+  filter: drop-shadow(0 1rem 1.75rem rgb(0 0 0 / 0.55));
 }
 
 .copy {

@@ -73,10 +73,24 @@ discoverable as installable; remove it and no install affordance ever appears.
 
 ### Icons
 
-Every icon is generated from `public/mkt-badge.jpg`, the Mega Kayak Trip X
-sticker — circle-cropped onto the `#0f172a` background and slightly overscaled
-to hide the benchtop it was photographed on. Redo that crop if the set is ever
-regenerated. `nuxt.config.ts` lists which sizes are wired up.
+Every icon, and the landing page badge, comes from `public/mkt-crew.jpg` — the
+Mega Kayak Trip Crew sticker. That file is the source, kept for regeneration;
+nothing links to it directly.
+
+The sticker is drawn on a near-white field, so the background is removed by
+flooding inward from the edges rather than by replacing white globally — the
+artwork's own white (the lettering, the river, the stars) would otherwise be
+punched through. The cut-out is then centred on `#0f172a`, matching the
+manifest's `background_color`:
+
+- `mkt-crew.png` — the cut-out itself, 768px, palette-quantised to 256 colours
+  (145 KB rather than 800 KB, with no visible loss on flat artwork). The
+  landing page draws it with a `drop-shadow` so the shadow follows the shield
+  rather than a box.
+- `icon-192`, `icon-512`, `apple-touch-icon` — art at 92% of the canvas.
+- `icon-maskable-512` — art at 72%, inside the safe zone launchers crop to.
+
+`nuxt.config.ts` lists which sizes are wired up.
 
 ## Auth
 
