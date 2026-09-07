@@ -446,12 +446,18 @@ function ratingText(value: number | null) {
   font-size: 0.85rem;
 }
 
+/* A fixed footprint so the block is the same size on every card whatever the
+   score, with room between it and a long campsite name. */
 .score {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 600;
   color: #38bdf8;
   white-space: nowrap;
+  flex: 0 0 auto;
+  min-width: 5rem;
+  padding-left: 1rem;
+  text-align: right;
 }
 
 /* A fixed box for the number so a 5 and a 6.5 take the same room, and the
