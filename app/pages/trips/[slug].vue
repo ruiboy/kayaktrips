@@ -357,54 +357,17 @@ async function deletePhoto(photo: PhotoRow) {
           <p v-if="data.trip.start_place || data.trip.end_place" class="route">
             {{ data.trip.start_place ?? '?' }} &rarr; {{ data.trip.end_place ?? '?' }}
           </p>
+
+          <!-- A plain anchor, not a NuxtLink: the router would treat this as a
+               navigation, and the browser's own hash jump is what's wanted. -->
+          <a v-if="user || mapPoints.length" class="to-map" href="#map">
+            {{ mapPoints.length ? 'See the map' : 'Place it on the map' }}
+            &darr;
+          </a>
         </div>
       </header>
 
       <p v-if="data.trip.notes" class="notes">{{ data.trip.notes }}</p>
-
-      <section v-if="user || mapPoints.length" class="map-section">
-        <div class="map-head">
-          <h2>Map</h2>
-          <div v-if="user" class="map-actions">
-            <button
-              class="ghost"
-              :class="{ armed: picking?.kind === 'start' }"
-              @click="arm({ kind: 'start' })"
-            >
-              {{ startPoint ? 'Move put-in' : 'Set put-in' }}
-            </button>
-            <button
-              class="ghost"
-              :class="{ armed: picking?.kind === 'end' }"
-              @click="arm({ kind: 'end' })"
-            >
-              {{ endPoint ? 'Move take-out' : 'Set take-out' }}
-            </button>
-          </div>
-        </div>
-
-        <p v-if="picking" class="picking-note">
-          Placing {{ pickingLabel }} &mdash; click the map, or press the button
-          again to cancel.
-        </p>
-        <p v-if="mapError" class="error">Couldn't save that point: {{ mapError }}</p>
-
-        <ClientOnly>
-          <TripMap
-            :points="mapPoints"
-            :picking="Boolean(picking)"
-            @place="place"
-          />
-          <template #fallback>
-            <div class="map-placeholder">Loading the map&hellip;</div>
-          </template>
-        </ClientOnly>
-
-        <p v-if="user && !mapPoints.length" class="empty">
-          Nothing placed yet. Use the buttons above, and "Set location" on a
-          campsite.
-        </p>
-      </section>
 
       <div class="columns">
         <TripCampsites
@@ -464,6 +427,50 @@ async function deletePhoto(photo: PhotoRow) {
         </section>
       </div>
 
+      <section v-if="user || mapPoints.length" id="map" class="map-section">
+        <div class="map-head">
+          <h2>Map</h2>
+          <div v-if="user" class="map-actions">
+            <button
+              class="ghost"
+              :class="{ armed: picking?.kind === 'start' }"
+              @click="arm({ kind: 'start' })"
+            >
+              {{ startPoint ? 'Move put-in' : 'Set put-in' }}
+            </button>
+            <button
+              class="ghost"
+              :class="{ armed: picking?.kind === 'end' }"
+              @click="arm({ kind: 'end' })"
+            >
+              {{ endPoint ? 'Move take-out' : 'Set take-out' }}
+            </button>
+          </div>
+        </div>
+
+        <p v-if="picking" class="picking-note">
+          Placing {{ pickingLabel }} &mdash; click the map, or press the button
+          again to cancel.
+        </p>
+        <p v-if="mapError" class="error">Couldn't save that point: {{ mapError }}</p>
+
+        <ClientOnly>
+          <TripMap
+            :points="mapPoints"
+            :picking="Boolean(picking)"
+            @place="place"
+          />
+          <template #fallback>
+            <div class="map-placeholder">Loading the map&hellip;</div>
+          </template>
+        </ClientOnly>
+
+        <p v-if="user && !mapPoints.length" class="empty">
+          Nothing placed yet. Use the buttons above, and "Set location" on a
+          campsite.
+        </p>
+      </section>
+
       <dialog ref="picker" class="picker" @click="onPickerClick">
         <div class="picker-head">
           <h2>Choose the badge</h2>
@@ -502,8 +509,22 @@ async function deletePhoto(photo: PhotoRow) {
   padding: 2rem;
 }
 
+.to-map {
+  display: inline-block;
+  margin-top: 0.75rem;
+  color: #38bdf8;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.to-map:hover {
+  text-decoration: underline;
+}
+
 .map-section {
   margin-top: 2.5rem;
+  /* So the jump doesn't land the heading flush against the top of the window. */
+  scroll-margin-top: 1.5rem;
 }
 
 .map-head {

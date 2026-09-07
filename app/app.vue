@@ -10,6 +10,14 @@
   color-scheme: dark;
 }
 
+/* For in-page jumps like the trip page's link down to its map. Gated on the
+   motion preference — a long smooth scroll is exactly what that setting is for. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
