@@ -29,7 +29,8 @@ useHead({
         </p>
         <div class="actions">
           <NuxtLink class="cta" to="/trips">See the trips &rarr;</NuxtLink>
-          <NuxtLink class="cta cta-quiet" to="/photos">All photos</NuxtLink>
+          <NuxtLink class="cta cta-quiet" to="/photos">See the photos &rarr;</NuxtLink>
+          <NuxtLink class="cta cta-quiet" to="/maps">See the maps &rarr;</NuxtLink>
         </div>
 
         <InstallButton class="install-slot" />

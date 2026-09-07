@@ -8,6 +8,7 @@ type PhotoRow = {
   storage_path: string
   caption: string | null
   created_at: string
+  trip: { slug: string; title: string } | null
 }
 
 const supabase = useSupabaseClient()
@@ -17,7 +18,13 @@ const user = useSupabaseUser()
 const { data: photos, error } = await useAsyncData('photos', async () => {
   const { data, error } = await supabase
     .from('photos')
-    .select('id, storage_path, caption, created_at')
+    // The FK is named explicitly because `trips` and `photos` reference each
+    // other both ways — `photos.trip_id` here, `trips.badge_photo_id` back —
+    // and PostGREST can't infer which relationship an embed means.
+    .select(
+      'id, storage_path, caption, created_at,' +
+        ' trip:trips!photos_trip_id_fkey(slug, title)',
+    )
     .order('created_at', { ascending: false })
     .limit(60)
 
@@ -70,6 +77,12 @@ function formatDate(iso: string) {
           />
         </a>
         <p v-if="photo.caption" class="caption">{{ photo.caption }}</p>
+
+        <NuxtLink v-if="photo.trip" class="trip" :to="`/trips/${photo.trip.slug}`">
+          {{ photo.trip.title }}
+        </NuxtLink>
+        <span v-else class="unfiled">Not filed under a trip</span>
+
         <time :datetime="photo.created_at">{{ formatDate(photo.created_at) }}</time>
       </li>
     </ul>
@@ -155,6 +168,28 @@ h1 {
   margin: 0.5rem 0 0;
   font-size: 0.9rem;
   line-height: 1.4;
+}
+
+.trip {
+  display: block;
+  margin-top: 0.35rem;
+  color: #38bdf8;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.trip:hover {
+  text-decoration: underline;
+}
+
+/* Photos uploaded before trips existed, and any uploaded without picking one.
+   `photos` has no update policy, so they can only be filed by re-uploading. */
+.unfiled {
+  display: block;
+  margin-top: 0.35rem;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-style: italic;
 }
 
 .grid time {
