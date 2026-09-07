@@ -23,11 +23,6 @@ const dialog = ref<HTMLDialogElement | null>(null)
 const editingId = ref<string | null>(null)
 const saving = ref(false)
 const formError = ref('')
-// Gates the map: a <dialog> is display:none until shown, so a map mounted in a
-// closed one measures zero and comes up blank. Closing unmounts it, releasing
-// a WebGL context browsers only allow a few of.
-const open = ref(false)
-
 function numberOrNull(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return null
@@ -64,9 +59,7 @@ function clearPoint() {
   draft.lon = ''
 }
 
-function onDialogClose() {
-  open.value = false
-}
+const mapPicker = ref<{ show: () => void } | null>(null)
 
 const blankRatings = () =>
   Object.fromEntries(RATINGS.map(({ key }) => [key, ''])) as Record<
@@ -102,7 +95,6 @@ function openNew() {
     lon: '',
     ...blankRatings(),
   })
-  open.value = true
   dialog.value?.showModal()
 }
 
@@ -119,7 +111,6 @@ function openEdit(site: Campsite) {
       RATINGS.map(({ key }) => [key, site[key] === null ? '' : String(site[key])]),
     ),
   })
-  open.value = true
   dialog.value?.showModal()
 }
 
@@ -303,7 +294,6 @@ function ratingText(value: number | null) {
       ref="dialog"
       class="editor"
       @click="onDialogClick"
-      @close="onDialogClose"
     >
       <form @submit.prevent="save">
         <div class="editor-head">
@@ -354,24 +344,21 @@ function ratingText(value: number | null) {
         <fieldset class="points">
           <legend>Where it was</legend>
 
-          <div class="points-head">
-            <p class="hint">Click the map to drop the pin.</p>
-            <button type="button" class="ghost small" @click="clearPoint">Clear</button>
-          </div>
-
-          <ClientOnly>
-            <TripMap v-if="open" :points="draftPoints" picking compact @place="onPlace" />
-          </ClientOnly>
-
-          <div class="pair coords">
-            <label>
-              <span>Latitude</span>
-              <input v-model="draft.lat" type="text" inputmode="decimal" placeholder="-34.0289" />
-            </label>
-            <label>
-              <span>Longitude</span>
-              <input v-model="draft.lon" type="text" inputmode="decimal" placeholder="139.6712" />
-            </label>
+          <div class="point-row">
+            <span class="point-value">
+              {{ draft.lat && draft.lon ? `${draft.lat}, ${draft.lon}` : 'Not placed' }}
+            </span>
+            <button type="button" class="ghost small" @click="mapPicker?.show()">
+              {{ draft.lat ? 'Move' : 'Set' }} on map
+            </button>
+            <button
+              v-if="draft.lat"
+              type="button"
+              class="ghost small"
+              @click="clearPoint"
+            >
+              Clear
+            </button>
           </div>
         </fieldset>
 
@@ -381,6 +368,13 @@ function ratingText(value: number | null) {
           {{ saving ? 'Saving…' : editingId ? 'Save changes' : 'Add campsite' }}
         </button>
       </form>
+
+      <MapPickerDialog
+        ref="mapPicker"
+        :points="draftPoints"
+        :title="draft.name ? `Place ${draft.name}` : 'Place the campsite'"
+        @place="onPlace"
+      />
     </dialog>
   </section>
 </template>
@@ -636,26 +630,18 @@ function ratingText(value: number | null) {
   padding: 0 0.35rem;
 }
 
-.points-head {
+.point-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
-.hint {
-  margin: 0;
+.point-value {
   color: #64748b;
   font-size: 0.85rem;
-}
-
-.coords label {
-  font-size: 0.8rem;
-}
-
-.coords input {
-  font-size: 0.9rem;
-  padding: 0.4rem 0.5rem;
+  font-variant-numeric: tabular-nums;
+  margin-right: auto;
 }
 
 .editor {

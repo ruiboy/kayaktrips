@@ -21,9 +21,6 @@ const emit = defineEmits<{ saved: [EditableTrip] }>()
 const supabase = useSupabaseClient()
 
 const dialog = ref<HTMLDialogElement | null>(null)
-// Gates the map: a <dialog> is display:none until shown, so a map mounted
-// inside a closed one measures zero and comes up blank.
-const open = ref(false)
 const saving = ref(false)
 const formError = ref('')
 
@@ -57,17 +54,11 @@ function show() {
     end_lat: asText(props.trip.end_lat),
     end_lon: asText(props.trip.end_lon),
   })
-  open.value = true
   dialog.value?.showModal()
 }
 
 function close() {
   dialog.value?.close()
-}
-
-// Unmounts the map — and with it a WebGL context browsers only allow a few of.
-function onClose() {
-  open.value = false
 }
 
 function onDialogClick(event: MouseEvent) {
@@ -129,14 +120,30 @@ function onPlace({ lat, lon }: { lat: number; lon: number }) {
   }
 }
 
-function clearTarget() {
-  if (target.value === 'start') {
+function clearTarget(which: 'start' | 'end') {
+  if (which === 'start') {
     draft.start_lat = ''
     draft.start_lon = ''
   } else {
     draft.end_lat = ''
     draft.end_lon = ''
   }
+}
+
+const mapPicker = ref<{ show: () => void } | null>(null)
+
+function pick(which: 'start' | 'end') {
+  target.value = which
+  mapPicker.value?.show()
+}
+
+// The form shows the coordinates as text rather than as inputs: the map is the
+// way in now, and a pair of decimal fields on a form you rarely retype was
+// mostly noise.
+function describe(which: 'start' | 'end') {
+  const lat = which === 'start' ? draft.start_lat : draft.end_lat
+  const lon = which === 'start' ? draft.start_lon : draft.end_lon
+  return lat && lon ? `${lat}, ${lon}` : 'Not placed'
 }
 
 const datesBackwards = computed(
@@ -199,7 +206,7 @@ async function save() {
 </script>
 
 <template>
-  <dialog ref="dialog" class="editor" @click="onDialogClick" @close="onClose">
+  <dialog ref="dialog" class="editor" @click="onDialogClick">
     <form @submit.prevent="save">
       <div class="editor-head">
         <h2>Edit trip</h2>
@@ -246,56 +253,45 @@ async function save() {
       <fieldset class="points">
         <legend>Where on the map</legend>
 
-        <div class="targets">
-          <button
-            type="button"
-            class="target"
-            :class="{ active: target === 'start' }"
-            @click="target = 'start'"
-          >
-            Put-in
+        <div class="point-row">
+          <span class="point-label">Put-in</span>
+          <span class="point-value">{{ describe('start') }}</span>
+          <button type="button" class="ghost small" @click="pick('start')">
+            {{ draft.start_lat ? 'Move' : 'Set' }} on map
           </button>
           <button
+            v-if="draft.start_lat"
             type="button"
-            class="target"
-            :class="{ active: target === 'end' }"
-            @click="target = 'end'"
+            class="ghost small"
+            @click="clearTarget('start')"
           >
-            Take-out
+            Clear
           </button>
-          <button type="button" class="ghost small" @click="clearTarget">Clear</button>
         </div>
 
-        <p class="hint">
-          Click the map to place the
-          {{ target === 'start' ? 'put-in' : 'take-out' }}.
-        </p>
-
-        <ClientOnly>
-          <TripMap v-if="open" :points="draftPoints" picking compact @place="onPlace" />
-        </ClientOnly>
-
-        <div class="pair coords">
-          <label>
-            <span>Put-in lat</span>
-            <input v-model="draft.start_lat" type="text" inputmode="decimal" />
-          </label>
-          <label>
-            <span>Put-in lon</span>
-            <input v-model="draft.start_lon" type="text" inputmode="decimal" />
-          </label>
-        </div>
-        <div class="pair coords">
-          <label>
-            <span>Take-out lat</span>
-            <input v-model="draft.end_lat" type="text" inputmode="decimal" />
-          </label>
-          <label>
-            <span>Take-out lon</span>
-            <input v-model="draft.end_lon" type="text" inputmode="decimal" />
-          </label>
+        <div class="point-row">
+          <span class="point-label">Take-out</span>
+          <span class="point-value">{{ describe('end') }}</span>
+          <button type="button" class="ghost small" @click="pick('end')">
+            {{ draft.end_lat ? 'Move' : 'Set' }} on map
+          </button>
+          <button
+            v-if="draft.end_lat"
+            type="button"
+            class="ghost small"
+            @click="clearTarget('end')"
+          >
+            Clear
+          </button>
         </div>
       </fieldset>
+
+      <MapPickerDialog
+        ref="mapPicker"
+        :points="draftPoints"
+        :title="target === 'start' ? 'Place the put-in' : 'Place the take-out'"
+        @place="onPlace"
+      />
 
       <p v-if="formError" class="error">{{ formError }}</p>
 
@@ -419,13 +415,26 @@ textarea {
   padding: 0 0.35rem;
 }
 
-.targets {
+.point-row {
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.75rem;
   flex-wrap: wrap;
 }
 
-.target,
+.point-label {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  min-width: 4.5rem;
+}
+
+.point-value {
+  color: #64748b;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  margin-right: auto;
+}
+
 .ghost {
   background: none;
   border: 1px solid #334155;
@@ -437,41 +446,17 @@ textarea {
   cursor: pointer;
 }
 
-.target.active {
-  border-color: #38bdf8;
-  background: #38bdf8;
-  color: #0f172a;
-  font-weight: 600;
-}
-
 .ghost {
   color: #38bdf8;
 }
 
-.ghost:hover,
-.target:hover {
+.ghost:hover {
   border-color: #38bdf8;
 }
 
 .ghost.small {
   font-size: 0.8rem;
   padding: 0.25rem 0.6rem;
-  margin-left: auto;
-}
-
-.hint {
-  margin: 0;
-  color: #64748b;
-  font-size: 0.85rem;
-}
-
-.coords label {
-  font-size: 0.8rem;
-}
-
-.coords input {
-  font-size: 0.9rem;
-  padding: 0.4rem 0.5rem;
 }
 
 .primary {

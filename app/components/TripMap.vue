@@ -15,8 +15,6 @@ const props = defineProps<{
   // When set, the next click on the map reports a coordinate instead of doing
   // nothing. The parent decides what it's for.
   picking: boolean
-  // Shorter, for use inside a dialog where the form also needs room.
-  compact?: boolean
 }>()
 
 const emit = defineEmits<{ place: [{ lat: number; lon: number }] }>()
@@ -171,7 +169,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="map-wrap" :class="{ picking, compact }">
+  <div class="map-wrap" :class="{ picking }">
     <div v-show="!failed" ref="container" class="map" />
 
     <div v-if="failed" class="map failed">
@@ -205,10 +203,6 @@ onBeforeUnmount(() => {
   border-radius: 0.5rem;
   /* Clips the canvas and the map's own controls to the rounded corners. */
   overflow: hidden;
-}
-
-.compact .map {
-  height: clamp(11rem, 30vh, 16rem);
 }
 
 .picking .map {
