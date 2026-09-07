@@ -1,13 +1,14 @@
 <script setup lang="ts">
+import type { MapPoint } from '~/components/TripMap.vue'
+
 const props = defineProps<{
   tripId: string
   startDate: string
   endDate: string
-  // Which campsite the map is currently waiting to place, if any.
-  pickingId: string | null
+  // The trip's put-in and take-out, drawn in the editor's map so you can see
+  // where along the river you're placing a night.
+  contextPoints: MapPoint[]
 }>()
-
-const emit = defineEmits<{ pick: [string] }>()
 
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
@@ -22,6 +23,50 @@ const dialog = ref<HTMLDialogElement | null>(null)
 const editingId = ref<string | null>(null)
 const saving = ref(false)
 const formError = ref('')
+// Gates the map: a <dialog> is display:none until shown, so a map mounted in a
+// closed one measures zero and comes up blank. Closing unmounts it, releasing
+// a WebGL context browsers only allow a few of.
+const open = ref(false)
+
+function numberOrNull(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+// The trip's endpoints for context, plus this campsite wherever it currently
+// sits in the draft.
+const draftPoints = computed<MapPoint[]>(() => {
+  const lat = numberOrNull(draft.lat)
+  const lon = numberOrNull(draft.lon)
+  if (lat === null || lon === null) return props.contextPoints
+  return [
+    ...props.contextPoints,
+    {
+      id: 'draft',
+      kind: 'campsite',
+      label: draft.name || 'This campsite',
+      lat,
+      lon,
+    },
+  ]
+})
+
+function onPlace({ lat, lon }: { lat: number; lon: number }) {
+  const round = (value: number) => String(Number(value.toFixed(6)))
+  draft.lat = round(lat)
+  draft.lon = round(lon)
+}
+
+function clearPoint() {
+  draft.lat = ''
+  draft.lon = ''
+}
+
+function onDialogClose() {
+  open.value = false
+}
 
 const blankRatings = () =>
   Object.fromEntries(RATINGS.map(({ key }) => [key, ''])) as Record<
@@ -57,6 +102,7 @@ function openNew() {
     lon: '',
     ...blankRatings(),
   })
+  open.value = true
   dialog.value?.showModal()
 }
 
@@ -73,6 +119,7 @@ function openEdit(site: Campsite) {
       RATINGS.map(({ key }) => [key, site[key] === null ? '' : String(site[key])]),
     ),
   })
+  open.value = true
   dialog.value?.showModal()
 }
 
@@ -95,13 +142,6 @@ const dateOutsideTrip = computed(
     Boolean(draft.camped_on) &&
     (draft.camped_on < props.startDate || draft.camped_on > props.endDate),
 )
-
-function numberOrNull(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-  const parsed = Number(trimmed)
-  return Number.isFinite(parsed) ? parsed : null
-}
 
 async function save() {
   if (!draft.name.trim() || !draft.camped_on || saving.value) return
@@ -237,19 +277,6 @@ function ratingText(value: number | null) {
         <div v-if="user" class="site-actions">
           <button class="ghost small" @click="openEdit(site)">Edit</button>
           <button
-            class="ghost small"
-            :class="{ armed: pickingId === site.id }"
-            @click="emit('pick', site.id)"
-          >
-            {{
-              pickingId === site.id
-                ? 'Click the map…'
-                : site.lat === null
-                  ? 'Set location'
-                  : 'Move location'
-            }}
-          </button>
-          <button
             class="delete"
             :disabled="deleting === site.id"
             @click="remove(site)"
@@ -271,7 +298,13 @@ function ratingText(value: number | null) {
 
     <!-- Editors only: RLS would refuse the writes anyway, but there's no reason
          to ship the form to everyone who reads the page. -->
-    <dialog v-if="user" ref="dialog" class="editor" @click="onDialogClick">
+    <dialog
+      v-if="user"
+      ref="dialog"
+      class="editor"
+      @click="onDialogClick"
+      @close="onDialogClose"
+    >
       <form @submit.prevent="save">
         <div class="editor-head">
           <h2>{{ editingId ? 'Edit campsite' : 'Add a campsite' }}</h2>
@@ -318,16 +351,29 @@ function ratingText(value: number | null) {
           </label>
         </fieldset>
 
-        <div class="pair">
-          <label>
-            <span>Latitude <em>(optional)</em></span>
-            <input v-model="draft.lat" type="text" inputmode="decimal" placeholder="-34.0289" />
-          </label>
-          <label>
-            <span>Longitude <em>(optional)</em></span>
-            <input v-model="draft.lon" type="text" inputmode="decimal" placeholder="139.6712" />
-          </label>
-        </div>
+        <fieldset class="points">
+          <legend>Where it was</legend>
+
+          <div class="points-head">
+            <p class="hint">Click the map to drop the pin.</p>
+            <button type="button" class="ghost small" @click="clearPoint">Clear</button>
+          </div>
+
+          <ClientOnly>
+            <TripMap v-if="open" :points="draftPoints" picking compact @place="onPlace" />
+          </ClientOnly>
+
+          <div class="pair coords">
+            <label>
+              <span>Latitude</span>
+              <input v-model="draft.lat" type="text" inputmode="decimal" placeholder="-34.0289" />
+            </label>
+            <label>
+              <span>Longitude</span>
+              <input v-model="draft.lon" type="text" inputmode="decimal" placeholder="139.6712" />
+            </label>
+          </div>
+        </fieldset>
 
         <p v-if="formError" class="error">{{ formError }}</p>
 
@@ -574,8 +620,51 @@ function ratingText(value: number | null) {
   cursor: not-allowed;
 }
 
+.points {
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem 1rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.points legend {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  padding: 0 0.35rem;
+}
+
+.points-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.coords label {
+  font-size: 0.8rem;
+}
+
+.coords input {
+  font-size: 0.9rem;
+  padding: 0.4rem 0.5rem;
+}
+
 .editor {
-  width: min(34rem, calc(100vw - 2rem));
+  width: min(40rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 4rem);
+  /* The form is taller than the viewport once the map is in it, and a
+     <dialog> does not scroll on its own — without this the Save button
+     is simply unreachable. */
+  overflow-y: auto;
   background: #1e293b;
   color: #e2e8f0;
   border: 1px solid #334155;

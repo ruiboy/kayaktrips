@@ -15,6 +15,8 @@ const props = defineProps<{
   // When set, the next click on the map reports a coordinate instead of doing
   // nothing. The parent decides what it's for.
   picking: boolean
+  // Shorter, for use inside a dialog where the form also needs room.
+  compact?: boolean
 }>()
 
 const emit = defineEmits<{ place: [{ lat: number; lon: number }] }>()
@@ -23,6 +25,9 @@ const container = ref<HTMLElement | null>(null)
 let map: MapLibreMap | null = null
 let markers: Marker[] = []
 let resizeObserver: ResizeObserver | null = null
+// Set once the reader pans or zooms themselves, after which the map stops
+// re-framing itself under them.
+let userMoved = false
 
 // Raster OpenStreetMap rather than a vector style: free outright, no key, no
 // account. Attribution is required by the licence and MapLibre renders it from
@@ -72,6 +77,14 @@ async function draw(maplibre: typeof import('maplibre-gl')) {
     )
   }
 
+  frame(maplibre)
+}
+
+// Separate from drawing, because a resize needs to re-frame without rebuilding
+// every marker — and must not do so once the reader has panned somewhere.
+function frame(maplibre: typeof import('maplibre-gl')) {
+  if (!map || userMoved) return
+
   if (props.points.length === 1) {
     const only = props.points[0]!
     map.jumpTo({ center: [only.lon, only.lat], zoom: 12 })
@@ -118,8 +131,24 @@ onMounted(async () => {
   // container changes on its own — the columns collapsing, the picking note
   // appearing, a stylesheet arriving late — and without this the canvas keeps
   // its old dimensions and the map renders into part of the box.
-  resizeObserver = new ResizeObserver(() => map?.resize())
+  //
+  // Re-framing after the resize matters as much as the resize itself: a map
+  // that fitted its bounds at the wrong size is left showing the wrong window
+  // onto the world, which is how a two-marker trip came up showing one.
+  resizeObserver = new ResizeObserver(async () => {
+    if (!map) return
+    map.resize()
+    frame(await import('maplibre-gl'))
+  })
   resizeObserver.observe(container.value as HTMLElement)
+
+  // `originalEvent` is present only when a human caused it; our own fitBounds
+  // and jumpTo would otherwise mark the map as moved on the first draw.
+  for (const event of ['dragstart', 'zoomstart', 'rotatestart'] as const) {
+    map.on(event, (e: { originalEvent?: unknown }) => {
+      if (e.originalEvent) userMoved = true
+    })
+  }
 
   await new Promise<void>((resolve) => map?.once('load', () => resolve()))
   await draw(maplibre)
@@ -142,7 +171,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="map-wrap" :class="{ picking }">
+  <div class="map-wrap" :class="{ picking, compact }">
     <div v-show="!failed" ref="container" class="map" />
 
     <div v-if="failed" class="map failed">
@@ -176,6 +205,10 @@ onBeforeUnmount(() => {
   border-radius: 0.5rem;
   /* Clips the canvas and the map's own controls to the rounded corners. */
   overflow: hidden;
+}
+
+.compact .map {
+  height: clamp(11rem, 30vh, 16rem);
 }
 
 .picking .map {
