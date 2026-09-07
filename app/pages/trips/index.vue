@@ -28,7 +28,7 @@ const { data: trips, error } = await useAsyncData('trips', async () => {
       'id, slug, title, start_date, end_date, start_place, end_place,' +
         ' badge:photos!trips_badge_photo_fkey(storage_path)',
     )
-    .order('start_date', { ascending: false })
+    .order('start_date', { ascending: true })
 
   if (error) throw error
   return data as TripRow[]
