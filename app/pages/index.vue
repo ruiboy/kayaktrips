@@ -22,7 +22,7 @@ useHead({
 
       <div class="copy">
         <p class="eyebrow">Kayak Trips</p>
-        <h1>Every put-in, campsite, and paddle &mdash; in one place.</h1>
+        <h1>Every trip, campsite, and paddle &mdash; in one place.</h1>
         <p class="lede">
           For the trips we've paddled: the water, the campsites, the photos
           that came back with us.
