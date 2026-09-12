@@ -157,9 +157,14 @@ const sh = [
   'set -e',
   `cd "$(dirname "$0")/.."`,
   '',
+  '# The local binary, not npx: thirty npx invocations spend longer resolving',
+  '# the package than transferring the files.',
+  'W=node_modules/.bin/wrangler',
+  '',
   ...uploads.map(
-    (p) =>
-      `npx wrangler r2 object put "kayaktrips-photos/${p.__key}" --file="db/photos/${p.__key}" --content-type="${p.__type}" --remote`,
+    (p, i) =>
+      `echo "[${i + 1}/${uploads.length}] ${p.__key}"\n` +
+      `$W r2 object put "kayaktrips-photos/${p.__key}" --file="db/photos/${p.__key}" --content-type="${p.__type}" --remote`,
   ),
   '',
   `echo "uploaded ${uploads.length} objects"`,
