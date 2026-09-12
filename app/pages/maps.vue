@@ -28,8 +28,13 @@ type CampsiteRow = {
 
 // Public read, so this renders server-side for anonymous visitors too. Both
 // halves come back in one request now rather than two parallel queries.
+// `useRequestFetch`, not bare `$fetch`: on Workers an internal fetch starts a
+// fresh event without `context.cloudflare`, so the route would find no D1
+// binding and fail server-side. This one carries the current event's context
+// (and its cookies) through.
+const requestFetch = useRequestFetch()
 const { data, error } = await useAsyncData('all-map-points', () =>
-  $fetch<{ trips: TripRow[]; campsites: CampsiteRow[] }>('/api/map'),
+  requestFetch<{ trips: TripRow[]; campsites: CampsiteRow[] }>('/api/map'),
 )
 
 // Every trip's points on one map. Marker ids are prefixed by trip because two

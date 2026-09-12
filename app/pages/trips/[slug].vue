@@ -29,11 +29,16 @@ const route = useRoute()
 const { isEditor } = useEditor()
 const slug = computed(() => String(route.params.slug))
 
+// `useRequestFetch`, not bare `$fetch`: on Workers an internal fetch starts a
+// fresh event without `context.cloudflare`, so the route would find no D1
+// binding and fail server-side. This one carries the current event's context
+// (and its cookies) through.
+const requestFetch = useRequestFetch()
 const { data, error } = await useAsyncData(
   () => `trip:${slug.value}`,
   async () => {
     try {
-      return await $fetch<{ trip: TripRow; photos: PhotoRow[] }>(
+      return await requestFetch<{ trip: TripRow; photos: PhotoRow[] }>(
         `/api/trips/${slug.value}`,
       )
     } catch (fetchError) {
@@ -104,7 +109,7 @@ async function setBadge(photoId: string) {
   badgeError.value = ''
 
   try {
-    await $fetch(`/api/trips/${data.value.trip.id}`, {
+    await $fetch(`/api/trips/${data.value.trip.slug}`, {
       method: 'PATCH',
       body: { badge_photo_id: photoId },
     })

@@ -17,8 +17,11 @@ const EDITABLE = [
 export default defineEventHandler(async (event) => {
   await requireEditor(event)
 
-  const id = getRouterParam(event, 'id')
-  if (!id) throw createError({ statusCode: 400, statusMessage: 'No id' })
+  // Addressed by slug, like the GET on this path. Nitro registers one
+  // parameter name per path segment, so a sibling route calling it `id` would
+  // silently read back undefined — and a trip's slug never changes anyway.
+  const slug = getRouterParam(event, 'slug')
+  if (!slug) throw createError({ statusCode: 400, statusMessage: 'No slug' })
 
   const body = (await readBody(event)) ?? {}
 
@@ -43,11 +46,11 @@ export default defineEventHandler(async (event) => {
   const row = await first(
     db(event)
       .prepare(
-        `update trips set ${assignments} where id = ?
-         returning id, title, start_date, end_date, start_place, end_place,
+        `update trips set ${assignments} where slug = ?
+         returning id, slug, title, start_date, end_date, start_place, end_place,
                    notes, start_lat, start_lon, end_lat, end_lon, badge_photo_id`,
       )
-      .bind(...values, id),
+      .bind(...values, slug),
   )
 
   if (!row) throw createError({ statusCode: 404, statusMessage: 'No such trip' })

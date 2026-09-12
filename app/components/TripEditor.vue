@@ -3,6 +3,9 @@ import type { MapPoint } from '~/components/TripMap.vue'
 
 export type EditableTrip = {
   id: string
+  // The trip is addressed by slug in the API, so the editor needs it even
+  // though nothing here can change it.
+  slug: string
   title: string
   start_date: string
   end_date: string
@@ -180,7 +183,7 @@ async function save() {
   // happened — and a 401 from it is the new shape of "you are not signed in".
   let row: EditableTrip | null = null
   try {
-    row = await $fetch<EditableTrip>(`/api/trips/${props.trip.id}`, {
+    row = await $fetch<EditableTrip>(`/api/trips/${props.trip.slug}`, {
       method: 'PATCH',
       body: fields,
     })

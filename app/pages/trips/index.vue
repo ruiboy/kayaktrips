@@ -19,8 +19,13 @@ const { isEditor } = useEditor()
 // Public read, so this renders server-side for anonymous visitors too. The
 // badge arrives from a left join in the route — the ambiguity that forced the
 // old embed to name its FK constraint is a join condition now.
+// `useRequestFetch`, not bare `$fetch`: on Workers an internal fetch starts a
+// fresh event without `context.cloudflare`, so the route would find no D1
+// binding and fail server-side. This one carries the current event's context
+// (and its cookies) through.
+const requestFetch = useRequestFetch()
 const { data: trips, error } = await useAsyncData('trips', () =>
-  $fetch<TripRow[]>('/api/trips'),
+  requestFetch<TripRow[]>('/api/trips'),
 )
 
 function route(trip: TripRow) {

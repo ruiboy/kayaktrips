@@ -19,9 +19,14 @@ type TripOption = {
 // Swallows its error rather than throwing: a trips query that fails shouldn't
 // take the upload page down with it. Worst case the picker is empty and the
 // photo lands unfiled.
+// `useRequestFetch`, not bare `$fetch`: on Workers an internal fetch starts a
+// fresh event without `context.cloudflare`, so the route would find no D1
+// binding and fail server-side. This one carries the current event's context
+// (and its cookies) through.
+const requestFetch = useRequestFetch()
 const { data: trips } = await useAsyncData('trips-for-upload', async () => {
   try {
-    const rows = await $fetch<TripOption[]>('/api/trips')
+    const rows = await requestFetch<TripOption[]>('/api/trips')
     return [...rows].reverse()
   } catch {
     return [] as TripOption[]

@@ -24,10 +24,14 @@ export type Campsite = {
 // no second request.
 export function useCampsites(tripId: MaybeRefOrGetter<string>) {
   const id = computed(() => toValue(tripId))
+  // `useRequestFetch`, not bare `$fetch`: on Workers an internal fetch starts a
+  // fresh event without `context.cloudflare`, so the route would find no D1
+  // binding and fail server-side.
+  const requestFetch = useRequestFetch()
 
   return useAsyncData(
     () => `campsites:${id.value}`,
-    () => $fetch<Campsite[]>('/api/campsites', { query: { trip: id.value } }),
+    () => requestFetch<Campsite[]>('/api/campsites', { query: { trip: id.value } }),
     { watch: [id] },
   )
 }
