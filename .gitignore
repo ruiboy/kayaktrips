@@ -33,3 +33,5 @@ db/seed*.sql
 # Editor swap files
 *.swp
 *.swo
+db/photos/
+db/upload-photos.sh
