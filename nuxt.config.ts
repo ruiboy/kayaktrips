@@ -12,6 +12,16 @@ export default defineNuxtConfig({
     preset: 'cloudflare_module',
   },
 
+  // Server-only: these never reach the browser. `accessAud` is the Access
+  // application's AUD tag — without it and the team domain, every write route
+  // refuses, which is the intended behaviour for an unconfigured deployment.
+  // `devEditorEmail` only has effect in a dev build; see server/utils/access.ts.
+  runtimeConfig: {
+    accessTeamDomain: '',
+    accessAud: '',
+    devEditorEmail: '',
+  },
+
   app: {
     head: {
       // @vite-pwa/nuxt serves the manifest but does not link it from the page.
