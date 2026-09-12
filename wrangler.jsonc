@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kayaktrips",
+  "main": "./.output/server/index.mjs",
+  "compatibility_date": "2025-07-15",
+  // Nuxt's server bundle pulls in Node builtins; without this the Worker
+  // fails to boot rather than failing at the call site.
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./.output/public/",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kayaktrips",
+      "database_id": "5fd4f60f-c024-49b4-8cf8-20950fde060f"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "PHOTOS",
+      "bucket_name": "kayaktrips-photos"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

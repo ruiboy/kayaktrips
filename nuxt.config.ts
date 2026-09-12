@@ -3,7 +3,14 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
-  modules: ['@nuxtjs/supabase', '@vite-pwa/nuxt'],
+  modules: ['@nuxtjs/supabase', '@vite-pwa/nuxt', 'nitro-cloudflare-dev'],
+
+  // Build a Workers module bundle rather than a Node server. The D1 and R2
+  // bindings are declared in wrangler.jsonc; `nitro-cloudflare-dev` hands the
+  // same bindings to `nuxt dev`, so local and deployed code take one path.
+  nitro: {
+    preset: 'cloudflare_module',
+  },
 
   app: {
     head: {

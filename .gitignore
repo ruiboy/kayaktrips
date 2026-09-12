@@ -22,3 +22,14 @@ logs
 .env
 .env.*
 !.env.example
+
+# Migration scratch — holds real email addresses, repo is public
+*.local.json
+db/seed*.sql
+
+# Wrangler local (miniflare) state
+.wrangler
+
+# Editor swap files
+*.swp
+*.swo
