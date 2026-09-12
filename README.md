@@ -4,30 +4,34 @@ An app for recording kayak trips — routes, durations, campsites, and photos.
 Public to read; a small number of logged-in users will be able to add and edit
 trips.
 
-## Status: proof of concept
+## Status
 
-Live at **https://kayaktrips.vercel.app** (installable — "Add to Home Screen").
+Live at **https://kayaktrips.vixim.workers.dev** (installable — "Add to Home
+Screen").
 
-This is the earliest cut, built to demonstrate the chosen stack working end to
-end. It has a landing page, a public photo gallery, and a photo upload for
-signed-in editors. No maps and no trip records yet.
+Trip records, campsites with ratings, photos filed against trips, and a map are
+all working. Reading is open to everyone; editing needs a signed-in editor.
 
-Uploading requires a signed-in editor; reading is open to everyone. See
-"Auth" below.
-
-Planned next: trip records, manually drawn routes on a map, and campsite
-details.
+Everything runs on Cloudflare. It moved there from Vercel + Supabase in
+September 2026, because the Supabase free tier caps at 1 GB of storage and
+5 GB of egress and pauses after a week idle — and the photos alone were already
+86 MB.
 
 ## Stack
 
-| Concern    | Choice                                    |
-| ---------- | ----------------------------------------- |
-| Frontend   | Nuxt 4 (Vue), installable as a PWA        |
-| Database   | Supabase (Postgres)                       |
-| Photos     | Supabase Storage                          |
-| Auth       | Supabase Auth (email + password)          |
-| Hosting    | Vercel                                    |
-| Maps       | MapLibre + OpenStreetMap (not added yet)  |
+| Concern    | Choice                                           |
+| ---------- | ------------------------------------------------ |
+| Frontend   | Nuxt 4 (Vue), installable as a PWA               |
+| Hosting    | Cloudflare Workers                               |
+| Database   | Cloudflare D1 (SQLite)                           |
+| Photos     | Cloudflare R2, private, served by the Worker     |
+| Auth       | Cloudflare Access (one-time PIN)                 |
+| Maps       | MapLibre + OpenStreetMap                         |
+
+D1 is only reachable from the Worker, so every query lives in `server/api/`
+rather than in the browser. That is the biggest structural difference from the
+Supabase version, where the browser queried Postgres directly and row-level
+security decided what it was allowed to see.
 
 ## Local setup
 
@@ -39,23 +43,32 @@ npm install
 ```
 
 `.npmrc` sets `legacy-peer-deps=true`. Don't remove it — npm 10's dependency
-resolver crashes on Nuxt 4's peer dependency graph without it, both locally
-and on Vercel.
+resolver crashes on Nuxt 4's peer dependency graph without it.
 
-Copy `.env.example` to `.env` and fill in the values from your Supabase
-project (Project Settings → API):
+Copy `.env.example` to `.env` and fill it in. The Cloudflare API token needs
+Workers Scripts, D1, R2 and Access permissions:
 
 ```bash
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-anon-public-key
+CLOUDFLARE_API_TOKEN=your-scoped-api-token
+CLOUDFLARE_ACCOUNT_ID=your-account-id
+NUXT_ACCESS_TEAM_DOMAIN=yourteam.cloudflareaccess.com
+NUXT_ACCESS_AUD=access-application-aud-tag
+NUXT_DEV_EDITOR_EMAIL=you@example.com
 ```
 
-Supabase Storage needs a public bucket named `photos` for uploads to work.
+`NUXT_DEV_EDITOR_EMAIL` stands in for an Access login under `npm run dev`,
+since Access only runs at the edge. It has no effect in a production build.
 
 Then:
 
 ```bash
 npm run dev
+```
+
+To work against a local copy of the data rather than the live one:
+
+```bash
+npx wrangler d1 execute kayaktrips --local --file=db/schema.sql
 ```
 
 ## Install (PWA)
@@ -94,61 +107,71 @@ manifest's `background_color`:
 
 ## Auth
 
-Public read, gated editing. `/upload` requires a session; everything else is
-open. Enforced in two places, deliberately:
+Public read, gated editing, enforced in two places that are **not**
+interchangeable.
 
-- **Route level** — `redirectOptions.include` in `nuxt.config.ts` lists the
-  paths that require a session. Add to it as editable pages appear.
-- **Database level** — a Supabase policy restricting inserts on the `photos`
-  bucket to the `authenticated` role:
+**Cloudflare Access** covers the two editor pages, `/upload` and `/trips/new`.
+Visiting one gets you a Cloudflare login: enter an allowlisted email, get a
+six-digit code, and the session lasts a month. There is no login page in this
+app, no users table, and no password handling.
 
-  ```sql
-  create policy "Authenticated can upload to photos"
-  on storage.objects for insert to authenticated
-  with check (bucket_id = 'photos');
-  ```
+**Every write route** separately verifies the Access token
+(`requireEditor()` in `server/utils/access.ts`). Both layers are needed:
 
-The route guard is a convenience; the storage policy is the actual security
-boundary. Never rely on the former alone.
+- Access matches on **path and cannot see the HTTP method**. `/api/trips`
+  serves public reads and editor writes on the same path, so putting Access in
+  front of `/api/` would take the public site down with it.
+- Editing a trip inline — badge, campsites, the trip editor — happens on
+  `/trips/<slug>`, a **public** page where Access never runs. Only the route
+  check protects it.
 
-### Accounts are created by hand
+When adding an editable page, add it to the Access application's destinations
+*and* make sure its routes call `requireEditor()`.
 
-There is no sign-up flow, and **"Allow new users to sign up" is turned off** in
-the Supabase dashboard. To add an editor: Authentication → Users → Add user,
-with "Auto Confirm User" ticked.
+The identity that reaches the app is an **email address**, which is what
+`uploaded_by` and `created_by` store. There is no foreign key behind them —
+accounts live in Access, not in the database.
 
-Sign-in is email + password rather than magic links because Supabase's default
-email service is capped at **2 messages per hour** and isn't meant for
-production. Magic links would fail unpredictably during a demo. Switching to
-magic links or OAuth later means wiring up custom SMTP (Resend et al.) or an
-OAuth provider first.
+### Adding an editor
+
+Zero Trust → Access → Applications → "Kayak Trips — editing" → Policies →
+Editors → Include → Emails. Dashboard config; no deploy.
+
+### What the routes guarantee
+
+The client never names a storage key or an uploader. The upload route generates
+the key from a fresh id and the validated MIME type, and takes the uploader from
+the verified token; the delete route accepts a photo **id** and looks the key up
+itself. Under Supabase a storage policy checked the path's first segment —
+nothing replaces that check except not trusting the client at all.
 
 ## Deployment
 
-Hosted on Vercel, auto-deploying from `main`. `SUPABASE_URL` and
-`SUPABASE_KEY` are set in the Vercel project's environment variables — the
-local `.env` is gitignored and never leaves your machine, so the two must be
-kept in sync by hand.
+```bash
+npm run build
+npx wrangler deploy
+```
 
-## Supabase free plan
+`wrangler.jsonc` holds the bindings (`DB`, `PHOTOS`, `ASSETS`) and the Access
+variables. The only real secret is the Cloudflare API token in `.env`; the
+Access team domain and AUD are public identifiers and live in the config.
 
-The constraints worth remembering, mostly because each one first shows up as
-something looking broken:
+Pushing to `main` publishes the repo but does **not** deploy — that is a
+separate, deliberate step.
 
-- **Nothing is backed up.** The free plan has no managed backups, and on
-  *every* plan Supabase's database backups exclude Storage objects — the
-  database holds only metadata about them. The photos are therefore the least
-  protected thing here, and the only part that couldn't be retyped.
-- **The schema exists only in the database.** No migration files, so the table
-  in `CLAUDE.md` is its sole written record and nothing detects drift.
-- **Projects pause after ~7 days idle.** A paused project reads as a broken
-  site: empty gallery, failing sign-in. Un-pause from the dashboard before
-  demoing and give it a minute to wake.
-- **Storage caps at 50 MB per file and 1 GB total.** Per-bucket size and MIME
-  limits are a paid feature, which is why `app/pages/upload.vue` enforces both
-  client-side — a UX guard, not a security boundary.
-- **The default auth email service allows 2 messages per hour** and isn't
-  meant for production. See "Auth" above for what that ruled out.
+## Free-plan limits
+
+- **Workers**: 100k requests/day, 10 ms CPU each. Static assets don't count.
+- **D1**: 5 GB, 5M row reads and 100k row writes/day.
+- **R2**: 10 GB, egress free. Currently 86 MB across 30 photos.
+- **Access**: 50 users.
+- **Nothing pauses**, which was the point of the move.
+- **Nothing is backed up.** `db/schema.sql` is the schema's only written
+  record and nothing detects drift. The photos remain the least protected
+  thing here and the only part that couldn't be retyped.
+- Upload limits (10 MB, image types) are enforced in
+  `server/api/photos/index.post.ts` — a real boundary, unlike the client-side
+  check that preceded it.
 
 ## Nuxt commands
 
