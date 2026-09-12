@@ -26,35 +26,11 @@ type CampsiteRow = {
   lon: number | null
 }
 
-const supabase = useSupabaseClient()
-
-// Public read, so this renders server-side for anonymous visitors too.
-const { data, error } = await useAsyncData('all-map-points', async () => {
-  const [trips, campsites] = await Promise.all([
-    supabase
-      .from('trips')
-      .select(
-        'id, slug, title, start_place, end_place, start_lat, start_lon,' +
-          ' end_lat, end_lon',
-      )
-      .order('start_date', { ascending: true }),
-    // Only sited campsites — the rest have nothing to plot.
-    supabase
-      .from('campsites')
-      .select('id, trip_id, name, camped_on, lat, lon')
-      .not('lat', 'is', null)
-      .not('lon', 'is', null)
-      .order('camped_on', { ascending: true }),
-  ])
-
-  if (trips.error) throw trips.error
-  if (campsites.error) throw campsites.error
-
-  return {
-    trips: trips.data as TripRow[],
-    campsites: campsites.data as CampsiteRow[],
-  }
-})
+// Public read, so this renders server-side for anonymous visitors too. Both
+// halves come back in one request now rather than two parallel queries.
+const { data, error } = await useAsyncData('all-map-points', () =>
+  $fetch<{ trips: TripRow[]; campsites: CampsiteRow[] }>('/api/map'),
+)
 
 // Every trip's points on one map. Marker ids are prefixed by trip because two
 // trips both have a put-in, and popups name the trip since nothing else on a

@@ -14,25 +14,14 @@ type TripRow = {
   badge: { storage_path: string } | null
 }
 
-const supabase = useSupabaseClient()
-const user = useSupabaseUser()
+const { isEditor } = useEditor()
 
-// Public read, so this renders server-side for anonymous visitors too.
-// `photos` sits on both ends of a relationship with `trips` — `photos.trip_id`
-// one way, `badge_photo_id` the other — so the embed names the constraint;
-// without it PostgREST can't tell which relationship is meant.
-const { data: trips, error } = await useAsyncData('trips', async () => {
-  const { data, error } = await supabase
-    .from('trips')
-    .select(
-      'id, slug, title, start_date, end_date, start_place, end_place,' +
-        ' badge:photos!trips_badge_photo_fkey(storage_path)',
-    )
-    .order('start_date', { ascending: true })
-
-  if (error) throw error
-  return data as TripRow[]
-})
+// Public read, so this renders server-side for anonymous visitors too. The
+// badge arrives from a left join in the route — the ambiguity that forced the
+// old embed to name its FK constraint is a join condition now.
+const { data: trips, error } = await useAsyncData('trips', () =>
+  $fetch<TripRow[]>('/api/trips'),
+)
 
 function route(trip: TripRow) {
   if (!trip.start_place && !trip.end_place) return ''
@@ -42,8 +31,7 @@ function route(trip: TripRow) {
 // Derived at render time, like everywhere else — rows hold paths, not URLs.
 function badgeUrl(trip: TripRow) {
   if (!trip.badge) return ''
-  return supabase.storage.from('photos').getPublicUrl(trip.badge.storage_path)
-    .data.publicUrl
+  return photoUrl(trip.badge.storage_path)
 }
 </script>
 
@@ -52,7 +40,7 @@ function badgeUrl(trip: TripRow) {
     <div class="topbar">
       <NuxtLink class="back" to="/">&larr; Back</NuxtLink>
       <div class="topbar-right">
-        <NuxtLink v-if="user" class="new" to="/trips/new">New trip</NuxtLink>
+        <NuxtLink v-if="isEditor" class="new" to="/trips/new">New trip</NuxtLink>
         <AccountControl />
       </div>
     </div>
@@ -63,7 +51,7 @@ function badgeUrl(trip: TripRow) {
 
     <p v-else-if="!trips?.length" class="empty">
       No trips yet.
-      <NuxtLink v-if="user" to="/trips/new">Register the first one</NuxtLink>
+      <NuxtLink v-if="isEditor" to="/trips/new">Register the first one</NuxtLink>
       <NuxtLink v-else to="/login">Sign in to add one</NuxtLink>.
     </p>
 

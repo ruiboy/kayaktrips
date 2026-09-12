@@ -10,7 +10,6 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
-    "@nuxtjs/supabase": "^2.0.10",
     "@vite-pwa/nuxt": "^1.1.1",
     "jose": "^6.2.12",
     "maplibre-gl": "^6.7.0",

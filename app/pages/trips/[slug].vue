@@ -26,39 +26,23 @@ type PhotoRow = {
 }
 
 const route = useRoute()
-const supabase = useSupabaseClient()
-const user = useSupabaseUser()
+const { isEditor } = useEditor()
 const slug = computed(() => String(route.params.slug))
 
 const { data, error } = await useAsyncData(
   () => `trip:${slug.value}`,
   async () => {
-    const { data: trip, error: tripError } = await supabase
-      .from('trips')
-      .select(
-        'id, slug, title, start_date, end_date, start_place, end_place, notes,' +
-          ' badge_photo_id, start_lat, start_lon, end_lat, end_lon',
+    try {
+      return await $fetch<{ trip: TripRow; photos: PhotoRow[] }>(
+        `/api/trips/${slug.value}`,
       )
-      .eq('slug', slug.value)
-      .maybeSingle()
-
-    if (tripError) throw tripError
-    // Returned rather than thrown: `useAsyncData` catches anything the handler
-    // throws into `error`, which would render a soft failure at HTTP 200. The
-    // 404 is raised outside, where it can reach the response.
-    if (!trip) return null
-
-    // Filed photos only. Anything uploaded before trips existed has a null
-    // trip_id and lives in the general gallery until it's uploaded again.
-    const { data: photos, error: photosError } = await supabase
-      .from('photos')
-      .select('id, storage_path, caption, created_at')
-      .eq('trip_id', (trip as TripRow).id)
-      .order('created_at', { ascending: true })
-
-    if (photosError) throw photosError
-
-    return { trip: trip as TripRow, photos: photos as PhotoRow[] }
+    } catch (fetchError) {
+      // Returned rather than rethrown on a 404: `useAsyncData` catches anything
+      // the handler throws into `error`, which would render a soft failure at
+      // HTTP 200. The 404 is raised outside, where it can reach the response.
+      if ((fetchError as { statusCode?: number })?.statusCode === 404) return null
+      throw fetchError
+    }
   },
   { watch: [slug] },
 )
@@ -78,7 +62,7 @@ useHead(() => ({
 // Built at render time rather than stored, so the bucket or project can move
 // without rewriting every row.
 function publicUrl(path: string) {
-  return supabase.storage.from('photos').getPublicUrl(path).data.publicUrl
+  return photoUrl(path)
 }
 
 // Held locally so the tick moves the moment the update lands, rather than
@@ -119,19 +103,16 @@ async function setBadge(photoId: string) {
   badgePhotoId.value = photoId
   badgeError.value = ''
 
-  // `.select()` for the same reason as the delete below: an update RLS won't
-  // allow matches no rows rather than erroring, so without the returned row a
-  // refusal is indistinguishable from success.
-  const { data: updated, error: updateError } = await supabase
-    .from('trips')
-    .update({ badge_photo_id: photoId })
-    .eq('id', data.value.trip.id)
-    .select('id')
-
-  if (updateError || !updated?.length) {
+  try {
+    await $fetch(`/api/trips/${data.value.trip.id}`, {
+      method: 'PATCH',
+      body: { badge_photo_id: photoId },
+    })
+  } catch (updateError) {
     badgePhotoId.value = previous
     badgeError.value =
-      updateError?.message ?? 'the database refused the change. Are you still signed in?'
+      (updateError as { statusMessage?: string })?.statusMessage ??
+      'the change was refused. Are you still signed in?'
   }
 }
 
@@ -242,44 +223,26 @@ async function deletePhoto(photo: PhotoRow) {
   deleting.value = photo.id
   deleteError.value = ''
 
-  // Row first, file second. The other order can leave a row pointing at a file
-  // that no longer exists — a broken tile in the gallery. This order can leave
-  // an orphaned file, which nothing lists and nothing renders.
-  //
-  // `.select()` matters: RLS doesn't refuse a delete, it just matches no rows,
-  // so a blocked delete returns 204 with no error and looks identical to a
-  // successful one. The returned rows are the only evidence anything happened.
-  const { data: removed, error: rowError } = await supabase
-    .from('photos')
-    .delete()
-    .eq('id', photo.id)
-    .select('id')
-
-  if (rowError) {
-    deleting.value = null
-    deleteError.value = rowError.message
-    return
-  }
-
-  if (!removed?.length) {
+  // Only the id goes to the server. The route reads the row to find out which
+  // object to remove, so nothing here can name a file — and it still deletes
+  // the row before the object, so a failure can only orphan a file rather than
+  // leave a row pointing at a missing one.
+  try {
+    await $fetch(`/api/photos/${photo.id}`, { method: 'DELETE' })
+  } catch (rowError) {
     deleting.value = null
     deleteError.value =
-      "That photo wasn't deleted — the database refused it. There's no delete policy on `photos` for your account."
+      (rowError as { statusCode?: number })?.statusCode === 401
+        ? "That photo wasn't deleted — are you still signed in?"
+        : ((rowError as { statusMessage?: string })?.statusMessage ??
+          "That photo wasn't deleted.")
     return
   }
-
-  const { error: fileError } = await supabase.storage
-    .from('photos')
-    .remove([photo.storage_path])
 
   data.value.photos = data.value.photos.filter((row) => row.id !== photo.id)
   // The FK is `on delete set null`, so the trip has already lost its badge.
   if (badgePhotoId.value === photo.id) badgePhotoId.value = null
   deleting.value = null
-
-  if (fileError) {
-    deleteError.value = `Removed from the gallery, but the file is still in the bucket: ${fileError.message}`
-  }
 }
 </script>
 
@@ -317,11 +280,11 @@ async function deletePhoto(photo: PhotoRow) {
           <!-- A plain anchor, not a NuxtLink: the router would treat this as a
                navigation, and the browser's own hash jump is what's wanted. -->
           <div class="head-actions">
-            <a v-if="user || mapPoints.length" class="to-map" href="#map">
+            <a v-if="isEditor || mapPoints.length" class="to-map" href="#map">
               {{ mapPoints.length ? 'See the map' : 'Place it on the map' }}
               &darr;
             </a>
-            <button v-if="user" class="ghost" @click="editor?.show()">
+            <button v-if="isEditor" class="ghost" @click="editor?.show()">
               Edit trip
             </button>
           </div>
@@ -329,7 +292,7 @@ async function deletePhoto(photo: PhotoRow) {
       </header>
 
       <TripEditor
-        v-if="user"
+        v-if="isEditor"
         ref="editor"
         :trip="data.trip"
         @saved="onTripSaved"
@@ -348,7 +311,7 @@ async function deletePhoto(photo: PhotoRow) {
         <section class="photos">
           <div class="photos-head">
             <h2>Photos</h2>
-            <div v-if="user" class="photo-actions">
+            <div v-if="isEditor" class="photo-actions">
               <button v-if="data.photos.length" class="ghost" @click="openPicker">
                 Choose badge
               </button>
@@ -381,7 +344,7 @@ async function deletePhoto(photo: PhotoRow) {
               <div class="tile-foot">
                 <p v-if="photo.id === badgePhotoId" class="is-badge">★ Badge</p>
                 <button
-                  v-if="user"
+                  v-if="isEditor"
                   class="delete"
                   :disabled="deleting === photo.id"
                   @click="deletePhoto(photo)"
@@ -394,7 +357,7 @@ async function deletePhoto(photo: PhotoRow) {
         </section>
       </div>
 
-      <section v-if="user || mapPoints.length" id="map" class="map-section">
+      <section v-if="isEditor || mapPoints.length" id="map" class="map-section">
         <div class="map-head">
           <h2>Map</h2>
         </div>
@@ -406,7 +369,7 @@ async function deletePhoto(photo: PhotoRow) {
           </template>
         </ClientOnly>
 
-        <p v-if="user && !mapPoints.length" class="empty">
+        <p v-if="isEditor && !mapPoints.length" class="empty">
           Nothing placed yet. Points are set in "Edit trip" and in each
           campsite's own form.
         </p>

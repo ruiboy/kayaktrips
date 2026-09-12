@@ -3,7 +3,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
-  modules: ['@nuxtjs/supabase', '@vite-pwa/nuxt', 'nitro-cloudflare-dev'],
+  modules: ['@vite-pwa/nuxt', 'nitro-cloudflare-dev'],
 
   // Build a Workers module bundle rather than a Node server. The D1 and R2
   // bindings are declared in wrangler.jsonc; `nitro-cloudflare-dev` hands the
@@ -41,18 +41,6 @@ export default defineNuxtConfig({
           content: 'black-translucent',
         },
       ],
-    },
-  },
-
-  supabase: {
-    // Only `include` paths require a session — everything else stays public,
-    // which is the whole point: public read, gated editing.
-    redirect: true,
-    redirectOptions: {
-      login: '/login',
-      callback: '/confirm',
-      include: ['/upload', '/trips/new'],
-      saveRedirectToCookie: true,
     },
   },
 

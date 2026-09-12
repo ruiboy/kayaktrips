@@ -18,7 +18,6 @@ export type EditableTrip = {
 const props = defineProps<{ trip: EditableTrip }>()
 const emit = defineEmits<{ saved: [EditableTrip] }>()
 
-const supabase = useSupabaseClient()
 
 const dialog = ref<HTMLDialogElement | null>(null)
 const saving = ref(false)
@@ -177,26 +176,27 @@ async function save() {
     end_lon: numberOrNull(draft.end_lon),
   }
 
-  // `.select()` because RLS refuses by matching no rows rather than erroring.
-  const { data: saved, error: saveError } = await supabase
-    .from('trips')
-    .update(fields)
-    .eq('id', props.trip.id)
-    .select(
-      'id, title, start_date, end_date, start_place, end_place, notes,' +
-        ' start_lat, start_lon, end_lat, end_lon',
-    )
-
-  saving.value = false
-
-  if (saveError) {
-    formError.value = saveError.message
+  // The route returns the saved row, which is still the only proof the write
+  // happened — and a 401 from it is the new shape of "you are not signed in".
+  let row: EditableTrip | null = null
+  try {
+    row = await $fetch<EditableTrip>(`/api/trips/${props.trip.id}`, {
+      method: 'PATCH',
+      body: fields,
+    })
+  } catch (error) {
+    saving.value = false
+    formError.value =
+      (error as { statusCode?: number })?.statusCode === 401
+        ? 'That was refused. Are you still signed in?'
+        : ((error as { statusMessage?: string })?.statusMessage ?? 'That did not save.')
     return
   }
 
-  const row = (saved as EditableTrip[] | null)?.[0]
+  saving.value = false
+
   if (!row) {
-    formError.value = 'The database refused that. Are you still signed in?'
+    formError.value = 'That was refused. Are you still signed in?'
     return
   }
 

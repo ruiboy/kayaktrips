@@ -3,8 +3,7 @@ useHead({
   title: 'Upload a photo — Kayak Trips',
 })
 
-const supabase = useSupabaseClient()
-const user = useSupabaseUser()
+const { isEditor } = useEditor()
 const route = useRoute()
 
 type TripOption = {
@@ -21,12 +20,12 @@ type TripOption = {
 // take the upload page down with it. Worst case the picker is empty and the
 // photo lands unfiled.
 const { data: trips } = await useAsyncData('trips-for-upload', async () => {
-  const { data } = await supabase
-    .from('trips')
-    .select('id, slug, title, start_date, end_date')
-    .order('start_date', { ascending: false })
-
-  return (data ?? []) as TripOption[]
+  try {
+    const rows = await $fetch<TripOption[]>('/api/trips')
+    return [...rows].reverse()
+  } catch {
+    return [] as TripOption[]
+  }
 })
 
 // Arriving from a trip page pre-selects that trip; `?trip=` carries the slug
@@ -89,72 +88,37 @@ async function handleUpload() {
 
   status.value = 'uploading'
   errorMessage.value = ''
+  badgeWarning.value = ''
 
-  // `useSupabaseUser` gives the decoded JWT payload, not a User object, so the
-  // uploader id is `sub` — there is no `id` claim. JwtPayload has an
-  // `[key: string]: any` index signature, so a wrong claim name typechecks
-  // fine and silently yields undefined; hence the explicit guard.
-  const uploaderId = user.value?.sub
-  if (!uploaderId) {
+  // Everything that decides where the file lands is the server's now — the
+  // uploader, the storage key, the extension. Nothing here names a path, so
+  // there is no field a tampered request could point somewhere else.
+  const form = new FormData()
+  form.append('file', file.value)
+  form.append('caption', caption.value.trim())
+  if (tripId.value) form.append('trip_id', tripId.value)
+  if (makeBadge.value && tripId.value) form.append('badge', 'true')
+
+  let result: { storage_path: string; badgeError: string | null }
+  try {
+    result = await $fetch('/api/photos', { method: 'POST', body: form })
+  } catch (error) {
     status.value = 'error'
-    errorMessage.value = 'Not signed in — reload the page and try again.'
-    return
-  }
-
-  // Scoping by uploader keeps ownership legible in the bucket and leaves room
-  // for per-user policies later without a migration.
-  const ext = file.value.name.split('.').pop()
-  const path = `${uploaderId}/${Date.now()}-${crypto.randomUUID()}.${ext}`
-
-  const { error: uploadError } = await supabase.storage
-    .from('photos')
-    .upload(path, file.value, { upsert: false })
-
-  if (uploadError) {
-    status.value = 'error'
-    errorMessage.value = uploadError.message
-    return
-  }
-
-  // The row is what the gallery reads, not the bucket. If this fails the file
-  // is orphaned — invisible rather than broken, but worth surfacing.
-  const trimmed = caption.value.trim()
-  // Returning the row because the badge needs its id: the trip points at the
-  // photo, not the other way round, so there's nothing to point at until the
-  // insert has happened.
-  const { data: inserted, error: insertError } = await supabase
-    .from('photos')
-    .insert({
-      storage_path: path,
-      uploaded_by: uploaderId,
-      caption: trimmed || null,
-      trip_id: tripId.value || null,
-    })
-    .select('id')
-    .single()
-
-  if (insertError) {
-    status.value = 'error'
-    errorMessage.value = `Uploaded, but not recorded: ${insertError.message}`
+    errorMessage.value =
+      (error as { statusCode?: number })?.statusCode === 401
+        ? 'Not signed in — reload the page and try again.'
+        : ((error as { statusMessage?: string })?.statusMessage ??
+          'That upload failed.')
     return
   }
 
   // Non-fatal on purpose: the photo is filed either way, and a failed badge
   // update shouldn't read as a failed upload.
-  badgeWarning.value = ''
-  if (makeBadge.value && tripId.value && inserted) {
-    const { error: badgeError } = await supabase
-      .from('trips')
-      .update({ badge_photo_id: (inserted as { id: string }).id })
-      .eq('id', tripId.value)
-
-    if (badgeError) {
-      badgeWarning.value = `Uploaded, but not set as the badge: ${badgeError.message}`
-    }
+  if (result.badgeError) {
+    badgeWarning.value = `Uploaded, but not set as the badge: ${result.badgeError}`
   }
 
-  const { data } = supabase.storage.from('photos').getPublicUrl(path)
-  uploadedUrl.value = data.publicUrl
+  uploadedUrl.value = photoUrl(result.storage_path)
   status.value = 'done'
 }
 </script>

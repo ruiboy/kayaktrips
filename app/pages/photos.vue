@@ -11,32 +11,13 @@ type PhotoRow = {
   trip: { slug: string; title: string } | null
 }
 
-const supabase = useSupabaseClient()
-const user = useSupabaseUser()
+const { isEditor } = useEditor()
 
-// Public read, so this renders server-side for anonymous visitors too.
-const { data: photos, error } = await useAsyncData('photos', async () => {
-  const { data, error } = await supabase
-    .from('photos')
-    // The FK is named explicitly because `trips` and `photos` reference each
-    // other both ways — `photos.trip_id` here, `trips.badge_photo_id` back —
-    // and PostGREST can't infer which relationship an embed means.
-    .select(
-      'id, storage_path, caption, created_at,' +
-        ' trip:trips!photos_trip_id_fkey(slug, title)',
-    )
-    .order('created_at', { ascending: false })
-    .limit(60)
-
-  if (error) throw error
-  return data as PhotoRow[]
-})
-
-// Built at render time rather than stored, so the bucket or project can move
-// without rewriting every row.
-function publicUrl(path: string) {
-  return supabase.storage.from('photos').getPublicUrl(path).data.publicUrl
-}
+// Public read, so this renders server-side for anonymous visitors too. The
+// route does the join that used to be a PostgREST embed naming its FK.
+const { data: photos, error } = await useAsyncData('photos', () =>
+  $fetch<PhotoRow[]>('/api/photos'),
+)
 
 const dateFormat = new Intl.DateTimeFormat('en-AU', {
   day: 'numeric',
@@ -54,7 +35,7 @@ function formatDate(iso: string) {
     <div class="topbar">
       <NuxtLink class="back" to="/">&larr; Back</NuxtLink>
       <div class="topbar-right">
-        <NuxtLink v-if="user" class="add" to="/upload">Add a photo</NuxtLink>
+        <NuxtLink v-if="isEditor" class="add" to="/upload">Add a photo</NuxtLink>
         <AccountControl />
       </div>
     </div>
@@ -69,9 +50,9 @@ function formatDate(iso: string) {
 
     <ul v-else class="grid">
       <li v-for="photo in photos" :key="photo.id">
-        <a :href="publicUrl(photo.storage_path)" target="_blank" rel="noopener">
+        <a :href="photoUrl(photo.storage_path)" target="_blank" rel="noopener">
           <img
-            :src="publicUrl(photo.storage_path)"
+            :src="photoUrl(photo.storage_path)"
             :alt="photo.caption ?? ''"
             loading="lazy"
           />
