@@ -23,6 +23,15 @@
       "bucket_name": "kayaktrips-photos"
     }
   ],
+  // Nitro maps NUXT_-prefixed vars onto runtimeConfig. Neither is a secret —
+  // the team domain is in every login URL and the AUD is a public identifier —
+  // but without both, server/utils/access.ts refuses every write, which is the
+  // right behaviour for a half-configured deployment.
+  "vars": {
+    "NUXT_ACCESS_TEAM_DOMAIN": "vixim.cloudflareaccess.com",
+    "NUXT_ACCESS_AUD": ""
+  },
+
   "observability": {
     "enabled": true
   }
