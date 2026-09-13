@@ -5,6 +5,10 @@
 
 const MAX_BYTES = 10 * 1024 * 1024
 
+// Multipart framing, the caption and the trip id all sit in the same body, so
+// the declared length is legitimately a little over the file itself.
+const FORM_OVERHEAD = 64 * 1024
+
 // Extension comes from the validated MIME type, not the client's filename.
 // Anything not on this list is refused outright.
 const EXT_BY_TYPE: Record<string, string> = {
@@ -18,6 +22,15 @@ const EXT_BY_TYPE: Record<string, string> = {
 
 export default defineEventHandler(async (event) => {
   const email = await requireEditor(event)
+
+  // Checked before the body is read, not after. `readMultipartFormData` buffers
+  // the whole request in memory, and the isolate only has 128 MB — so testing
+  // the parsed file's length would already be too late for a request large
+  // enough to matter.
+  const declared = Number(getRequestHeader(event, 'content-length') ?? 0)
+  if (declared > MAX_BYTES + FORM_OVERHEAD) {
+    throw createError({ statusCode: 413, statusMessage: 'Images must be 10 MB or smaller' })
+  }
 
   const form = await readMultipartFormData(event)
   const file = form?.find((part) => part.name === 'file' && part.filename)

@@ -69,9 +69,50 @@ export async function editorEmail(event: H3Event): Promise<string | null> {
 }
 
 /**
+ * Refuses a write that a *different* site caused the browser to make.
+ *
+ * The routes authorise on the Access cookie, and a cookie rides along with any
+ * request the browser makes — so without this, a page on another origin could
+ * submit a form to /api/photos while an editor is signed in and have it
+ * accepted. A form post needs no CORS preflight, so nothing else stops it.
+ *
+ * `SameSite=Lax` on the Access cookie probably prevents this already, but that
+ * is Cloudflare's cookie to set, not ours, and it is not worth depending on
+ * something we do not control and cannot see.
+ *
+ * Checked only when the browser tells us: `Origin` and `Sec-Fetch-Site` are
+ * present on cross-origin writes from any browser, and absent from curl and
+ * other non-browser clients — which are not what CSRF is.
+ */
+function assertSameOrigin(event: H3Event): void {
+  if (getRequestHeader(event, 'sec-fetch-site') === 'cross-site') {
+    throw createError({ statusCode: 403, statusMessage: 'Cross-site request refused' })
+  }
+
+  const origin = getRequestHeader(event, 'origin')
+  if (!origin) return
+
+  let originHost: string
+  try {
+    originHost = new URL(origin).host
+  } catch {
+    throw createError({ statusCode: 403, statusMessage: 'Bad Origin' })
+  }
+
+  if (originHost !== getRequestHost(event)) {
+    throw createError({ statusCode: 403, statusMessage: 'Cross-site request refused' })
+  }
+}
+
+/**
  * The verified editor's email, or a 401. Use on every route that writes.
+ *
+ * Also refuses cross-site writes, so that check cannot be forgotten on a route
+ * added later — every write already calls this.
  */
 export async function requireEditor(event: H3Event): Promise<string> {
+  assertSameOrigin(event)
+
   const email = await editorEmail(event)
   if (!email) {
     throw createError({ statusCode: 401, statusMessage: 'Sign in to edit' })
