@@ -372,29 +372,27 @@ async function deletePhoto(photo: PhotoRow) {
 
           <ul v-if="data.photos.length" class="grid">
             <li v-for="photo in data.photos" :key="photo.id">
-              <!-- The pencil sits on the image rather than beside the caption:
-                   every image is the same 4:3 box, so it lands in the same
-                   place on every tile, while captions vary in length and left a
-                   row of pencils at ragged heights. -->
-              <div class="shot">
-                <a :href="publicUrl(photo.storage_path)" target="_blank" rel="noopener">
-                  <img
-                    :src="thumb(photo.storage_path)"
-                    :alt="photo.caption ?? ''"
-                    loading="lazy"
-                  />
-                </a>
+              <a :href="publicUrl(photo.storage_path)" target="_blank" rel="noopener">
+                <img
+                  :src="thumb(photo.storage_path)"
+                  :alt="photo.caption ?? ''"
+                  loading="lazy"
+                />
+              </a>
+
+              <!-- The pencil runs on from the caption text rather than sitting
+                   in a column of its own. Inline, so on a caption that wraps it
+                   follows the last word instead of hanging level with the first
+                   line and leaving a row of pencils at different heights. -->
+              <p v-if="photo.caption || isEditor" class="caption">
+                <span v-if="photo.id === badgePhotoId" class="is-badge" title="Trip badge">★</span>
+                {{ photo.caption }}
                 <EditButton
                   v-if="isEditor"
-                  class="on-image"
+                  class="inline-edit"
                   :label="`Edit ${photo.caption || 'this photo'}`"
                   @click="openPhoto(photo)"
                 />
-              </div>
-
-              <p v-if="photo.caption || photo.id === badgePhotoId" class="caption">
-                <span v-if="photo.id === badgePhotoId" class="is-badge" title="Trip badge">★</span>
-                {{ photo.caption }}
               </p>
             </li>
           </ul>
@@ -653,28 +651,11 @@ h1 {
   background: #1e293b;
 }
 
-.shot {
-  position: relative;
-}
-
-/* A dark disc so it reads over a bright photo as well as a dark one, quiet
-   until the pointer is near, and still visible at rest on touch where there is
-   no hover to reveal it. */
-.on-image {
-  position: absolute;
-  top: 0.4rem;
-  right: 0.4rem;
-  background: #0f172ab3;
-  color: #e2e8f0;
-  border-color: transparent;
-  opacity: 0.75;
-}
-
-.shot:hover .on-image,
-.on-image:focus-visible {
-  opacity: 1;
-  background: #0f172ae6;
-  color: #38bdf8;
+/* Sits in the text flow, so it trails the last word of a wrapped caption and
+   needs no reserved column. The photo stays uncluttered. */
+.inline-edit {
+  vertical-align: -0.35em;
+  margin-left: 0.15rem;
 }
 
 .caption {

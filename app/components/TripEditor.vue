@@ -85,6 +85,14 @@ const draft = reactive({
 
 const asText = (value: number | null) => (value === null ? '' : String(value))
 
+const badgePicker = ref<{ show: () => void } | null>(null)
+
+// The chosen photo, held in the draft rather than written straight through —
+// backing out of the edit leaves the trip's badge as it was.
+const chosenBadge = computed(
+  () => props.photos.find((photo) => photo.id === draft.badge_photo_id) ?? null,
+)
+
 function show() {
   formError.value = ''
   target.value = 'start'
@@ -339,30 +347,41 @@ async function save() {
 
       <fieldset v-if="photos.length" class="badge-field">
         <legend>Badge</legend>
-        <p class="hint">The photo that stands for this trip in the list.</p>
 
-        <ul class="badge-strip">
-          <li v-for="photo in photos" :key="photo.id">
-            <button
-              type="button"
-              class="badge-pick"
-              :class="{ current: draft.badge_photo_id === photo.id }"
-              :aria-pressed="draft.badge_photo_id === photo.id"
-              :title="photo.caption ?? 'Untitled'"
-              @click="
-                draft.badge_photo_id =
-                  draft.badge_photo_id === photo.id ? null : photo.id
-              "
-            >
-              <img
-                :src="thumbUrl(photo.storage_path)"
-                :alt="photo.caption ?? ''"
-                loading="lazy"
-              />
+        <!-- A button and the current choice, not the whole gallery: rendering
+             every photo inline buried the fields below it and duplicated the
+             grid already on the page. -->
+        <div class="badge-row">
+          <img
+            v-if="chosenBadge"
+            class="badge-thumb"
+            :src="thumbUrl(chosenBadge.storage_path)"
+            :alt="chosenBadge.caption ?? ''"
+          />
+          <p v-else class="hint">No badge chosen.</p>
+
+          <div class="badge-actions">
+            <button type="button" class="ghost" @click="badgePicker?.show()">
+              {{ chosenBadge ? 'Change badge' : 'Choose badge' }}
             </button>
-          </li>
-        </ul>
+            <button
+              v-if="chosenBadge"
+              type="button"
+              class="linky"
+              @click="draft.badge_photo_id = null"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
       </fieldset>
+
+      <BadgePickerDialog
+        ref="badgePicker"
+        :photos="photos"
+        :selected-id="draft.badge_photo_id"
+        @choose="draft.badge_photo_id = $event"
+      />
 
       <MapPickerDialog
         ref="mapPicker"
@@ -567,45 +586,40 @@ textarea {
   padding: 0.25rem 0.6rem;
 }
 
-/* A strip rather than a grid: the badge is one choice among a trip's photos,
-   and a full gallery inside an edit form would bury the fields below it. */
-.badge-strip {
-  list-style: none;
+.badge-row {
   display: flex;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0.2rem 0 0.4rem;
-  overflow-x: auto;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
-.badge-pick {
-  display: block;
-  padding: 0;
-  background: none;
-  border: 2px solid transparent;
-  border-radius: 0.4rem;
-  cursor: pointer;
-  line-height: 0;
-}
-
-.badge-pick img {
+.badge-thumb {
   width: 4.5rem;
   height: 3.4rem;
   object-fit: cover;
-  border-radius: 0.25rem;
-  opacity: 0.6;
+  border-radius: 0.35rem;
+  border: 1px solid #334155;
 }
 
-.badge-pick:hover img {
-  opacity: 0.85;
+.badge-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.badge-pick.current {
-  border-color: #38bdf8;
+.linky {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #64748b;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
-.badge-pick.current img {
-  opacity: 1;
+.linky:hover {
+  color: #38bdf8;
 }
 
 .form-foot {
