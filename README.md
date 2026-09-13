@@ -14,10 +14,9 @@ every trip at once are all working. Reading is open to everyone; editing needs
 a signed-in editor, and is always reached through a small pencil — deleting
 lives inside the dialog that pencil opens, never on the page itself.
 
-Everything runs on Cloudflare. It moved there from Vercel + Supabase in
-September 2026, because the Supabase free tier caps at 1 GB of storage and
-5 GB of egress and pauses after a week idle — and the photos alone were already
-86 MB.
+Everything runs on Cloudflare, on free tiers that comfortably cover a personal
+project: 10 GB of object storage with egress free, and nothing that pauses when
+the site sits quiet.
 
 ## Stack
 
@@ -31,9 +30,8 @@ September 2026, because the Supabase free tier caps at 1 GB of storage and
 | Maps       | MapLibre + OpenStreetMap                         |
 
 D1 is only reachable from the Worker, so every query lives in `server/api/`
-rather than in the browser. That is the biggest structural difference from the
-Supabase version, where the browser queried Postgres directly and row-level
-security decided what it was allowed to see.
+rather than in the browser, and each route that writes decides for itself
+whether the caller may. That check is the security boundary — see "Auth".
 
 ## Local setup
 
@@ -150,8 +148,8 @@ Editors → Include → Emails. Dashboard config; no deploy.
 The client never names a storage key or an uploader. The upload route generates
 the key from a fresh id and the validated MIME type, and takes the uploader from
 the verified token; the delete route accepts a photo **id** and looks the key up
-itself. Under Supabase a storage policy checked the path's first segment —
-nothing replaces that check except not trusting the client at all.
+itself. Nothing the browser sends can name a file, which is the point: a route
+that accepted a path would let one editor overwrite another's photo.
 
 ## Deployment
 

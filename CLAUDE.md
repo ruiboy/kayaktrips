@@ -53,11 +53,10 @@ expected to cover it.
 
 - **Nuxt 4 (Vue), not Next.js.** The owner knows Vue better. This was an
   explicit choice after considering both.
-- **Cloudflare for everything** since 2026-09-13: Workers (hosting and server
-  routes), D1 (database), R2 (photos), Access (auth). Migrated off
-  Vercel + Supabase because the Supabase free tier caps at 1 GB of storage and
-  5 GB of egress and pauses after 7 days idle; the 30 existing photos were
-  already 86 MB. R2 gives 10 GB with egress free and nothing pauses.
+- **Cloudflare for everything**: Workers (hosting and server routes), D1
+  (database), R2 (photos), Access (auth). Chosen for a free tier that fits a
+  personal project without a ceiling in sight — 10 GB of object storage with
+  egress free — and because nothing pauses when the site sits quiet.
 - **PWA, not native.** Installable via the browser, no app store, no
   React Native. Revisit only if offline maps or background GPS become real
   requirements.
@@ -115,9 +114,10 @@ Storage: R2 objects are keyed `<photo-id>.<ext>`, flat, no folders. The bucket
 is private; `server/routes/img/[key].get.ts` serves the bytes with an immutable
 cache header. There is no public bucket URL and no custom domain.
 
-`scripts/export-from-supabase.mjs` produced the one-off migration and is kept
-for reference. Its outputs (`db/seed.sql`, `db/photos/`, `db/users.local.json`)
-are gitignored because they carry real email addresses and this repo is public.
+`scripts/export-from-supabase.mjs` reads the archived project described under
+"Free-tier limits" and writes `db/seed.sql`, `db/photos/` and
+`db/users.local.json` — all gitignored, because they carry real email addresses
+and this repo is public. It is also how you'd re-seed a local database.
 
 ## Data model
 
@@ -138,15 +138,15 @@ Design intent worth preserving:
   project can move without rewriting rows.
 - **`on delete set null`**, not cascade — a photo is a record of a trip and
   outlives the account that posted it. Attribution is lost, the photo isn't.
-- **No RLS — SQLite has none.** Every policy that used to live in the database
-  now lives in `server/api/`. `requireEditor()` in `server/utils/access.ts` is
-  the boundary: it verifies the Cloudflare Access token and is what stops one
-  person posting as another, since `uploaded_by` comes from the verified token
-  and is never accepted from the request.
+- **The database enforces nothing about who may write.** SQLite has no
+  row-level security, so `requireEditor()` in `server/utils/access.ts` is the
+  boundary: it verifies the Cloudflare Access token, and `uploaded_by` comes
+  from that token rather than from the request, which is what stops one person
+  posting as another.
 - **The client never names a storage key.** The upload route generates it from
-  a fresh id and the validated MIME type. This is deliberate: the old storage
-  policy checked the path's first segment against the uploader, and nothing
-  replaces that check except not trusting the client at all.
+  a fresh id and the validated MIME type. Deliberate: a route that accepted a
+  path would let one editor overwrite another's object, and nothing catches
+  that except never trusting the client with it.
 - **Deleting removes the row first, then the object**
   (`server/api/photos/[id].delete.ts`). The other order can leave a row
   pointing at a missing file — a broken tile; this order can only leave an
@@ -165,9 +165,8 @@ Design intent worth preserving:
   page split on. An emptied caption stores NULL rather than `''`, because the
   templates test for null to decide whether to render the line.
 
-Orphans are no longer possible: the upload route deletes the object it just
-wrote if the row insert fails. Under Supabase the two sides were different
-services and it couldn't.
+Orphans are not possible: the upload route deletes the object it just wrote if
+the row insert fails, so the bucket and the table cannot disagree.
 
 ### `trips`
 
@@ -198,9 +197,10 @@ Design intent worth preserving:
   parameter name per path segment, so `[slug].get.ts` and a sibling calling it
   `id` silently read back undefined. The slug never changes, so it is also the
   more coherent identifier.
-- **`trips` and `photos` reference each other**, which is why the migration
-  inserts trips with a null badge and backfills it. There is no PostgREST any
-  more, so the embed that had to name the constraint is now a `left join`.
+- **`trips` and `photos` reference each other**, so anything inserting both
+  has to write trips with a null badge first and backfill it. Reads join the
+  two rather than embedding, since the relationship runs both ways and a join
+  says which direction it means.
 - **`badge_photo_id` and `PATCH /api/trips/<slug>`**: the route allowlists the
   fields it will write, so a request cannot reach `slug` or `created_by`.
 - Nothing constrains the badge to a photo *of* that trip; only the UI does.
@@ -277,8 +277,6 @@ Design intent worth preserving:
 - ⚠️ **`GET /accounts/:id/access/identity_providers` lies to this token.** It
   answers `success: true` with an empty list while the dashboard shows
   providers. Don't infer login configuration from it — open the login page.
-- Not Supabase Auth any more, and not magic links: the old constraint was
-  Supabase's 2-messages-per-hour default mailer. Access sends its own codes.
 - **Signing in is a navigation, not a page.** `AccountControl.vue` links to
   `/signin` with a plain `<a>`; Access challenges at the edge and the page
   bounces you back to wherever you clicked from. A client-side route change
@@ -316,24 +314,21 @@ Design intent worth preserving:
 - D1: **5 GB**, 5M row reads and 100k row writes/day.
 - R2: **10 GB**, egress free. Currently 86 MB across 30 photos.
 - Access: **50 users**.
-- **Nothing pauses.** That was the point of leaving Supabase.
-- ⚠️ **The Supabase project is kept on purpose, paused, as the only
+- **Nothing pauses**, which is why the stack is worth its constraints.
+- ⚠️ **An archived Supabase project is kept on purpose, paused, as the only
   off-Cloudflare copy of the photo originals.** R2 has no backups and no
   versioning, and the 86 MB of originals are the one thing here that can't be
   retyped. A paused free project is restorable from the dashboard for a year,
   costs nothing, and needs no attention — so leave it paused rather than
-  un-pausing or deleting it. Delete it once R2 has a backup story. The Vercel
-  project was deleted on 2026-09-13; Supabase deliberately was not.
+  un-pausing or deleting it. Delete it once R2 has a backup story.
 - Upload size and type are enforced in `server/api/photos/index.post.ts`
-  (10 MB, MIME allowlist) — a real boundary now, not the UX guard the
-  client-side check in `app/pages/upload.vue` was.
-- ⚠️ **The gallery downloads 86 MB to render 208px tiles.** `/photos` lays out
-  `minmax(13rem, 1fr)` but serves full 4000x3000 originals — 72 seconds on a
-  10 Mbps phone. The fix is small variants served to the grid, not resizing on
-  upload: storage and egress are free here, so nothing is gained by destroying
-  originals, and the full-size click-through should stay full size.
-  (This line previously said "86 MB is too much storage" — a judgement carried
-  over from Supabase's 1 GB cap that stopped being true at the migration.)
+  (10 MB, MIME allowlist). The check in `app/pages/upload.vue` is a UX guard,
+  not a boundary.
+- **The grids serve thumbnails, the click-through serves the original.** That
+  matters more than it sounds: `/photos` lays out 208px tiles, and serving the
+  4000x3000 originals into them made the page 86 MB — 72 seconds on a 10 Mbps
+  phone. It is now about 5 MB. Storage is free here, so nothing is gained by
+  shrinking what was uploaded; the waste was only ever in what was sent.
 
 ## Scope discipline
 
