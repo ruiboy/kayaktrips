@@ -97,6 +97,13 @@ function openNew() {
   dialog.value?.showModal()
 }
 
+// The campsite the dialog is currently editing. Delete lives in the dialog
+// now, and needs the row rather than just its id — for the name it puts in the
+// confirmation.
+const editing = computed(
+  () => (campsites.value ?? []).find((site) => site.id === editingId.value) ?? null,
+)
+
 function openEdit(site: Campsite) {
   editingId.value = site.id
   formError.value = ''
@@ -208,6 +215,8 @@ async function remove(site: Campsite) {
 
   deleting.value = null
   campsites.value = (campsites.value ?? []).filter((row) => row.id !== site.id)
+  // Deleting happens from inside the dialog, so the dialog has to go with it.
+  dialog.value?.close()
 }
 
 function ratingText(value: number | null) {
@@ -260,14 +269,7 @@ function ratingText(value: number | null) {
         </p>
 
         <div v-if="isEditor" class="site-actions">
-          <button class="ghost small" @click="openEdit(site)">Edit</button>
-          <button
-            class="delete"
-            :disabled="deleting === site.id"
-            @click="remove(site)"
-          >
-            {{ deleting === site.id ? 'Deleting…' : 'Delete' }}
-          </button>
+          <EditButton :label="`Edit ${site.name}`" @click="openEdit(site)" />
         </div>
       </li>
     </ol>
@@ -357,10 +359,25 @@ function ratingText(value: number | null) {
         </fieldset>
 
         <p v-if="formError" class="error">{{ formError }}</p>
+        <p v-if="listError" class="error">{{ listError }}</p>
 
-        <button type="submit" class="primary" :disabled="saving">
-          {{ saving ? 'Saving…' : editingId ? 'Save changes' : 'Add campsite' }}
-        </button>
+        <div class="form-foot">
+          <!-- Only when editing: there is nothing to delete while adding, and
+               the button would be a trap next to Save. -->
+          <button
+            v-if="editingId"
+            type="button"
+            class="delete"
+            :disabled="deleting === editingId"
+            @click="remove(editing!)"
+          >
+            {{ deleting === editingId ? 'Deleting…' : 'Delete campsite' }}
+          </button>
+
+          <button type="submit" class="primary" :disabled="saving">
+            {{ saving ? 'Saving…' : editingId ? 'Save changes' : 'Add campsite' }}
+          </button>
+        </div>
       </form>
 
       <MapPickerDialog
@@ -562,6 +579,14 @@ function ratingText(value: number | null) {
   color: #64748b;
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
+}
+
+.form-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .site-actions {

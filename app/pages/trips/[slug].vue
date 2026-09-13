@@ -89,6 +89,28 @@ const badgePhoto = computed(
   () => data.value?.photos.find((photo) => photo.id === badgePhotoId.value) ?? null,
 )
 
+// The per-photo dialog. Opened by the pencil on a tile; holds the badge
+// control and Delete, so neither sits on the page where a reader's thumb is.
+const photoDialog = ref<HTMLDialogElement | null>(null)
+const editingPhoto = ref<PhotoRow | null>(null)
+
+function openPhoto(photo: PhotoRow) {
+  editingPhoto.value = photo
+  deleteError.value = ''
+  photoDialog.value?.showModal()
+}
+
+function onPhotoDialogClick(event: MouseEvent) {
+  if (event.target === photoDialog.value) photoDialog.value?.close()
+}
+
+async function badgeFromDialog() {
+  if (!editingPhoto.value) return
+  const id = editingPhoto.value.id
+  photoDialog.value?.close()
+  await setBadge(id)
+}
+
 // A native <dialog> rather than a hand-rolled overlay: Escape to dismiss and
 // the focus trap come with it.
 const picker = ref<HTMLDialogElement | null>(null)
@@ -254,6 +276,9 @@ async function deletePhoto(photo: PhotoRow) {
   // The FK is `on delete set null`, so the trip has already lost its badge.
   if (badgePhotoId.value === photo.id) badgePhotoId.value = null
   deleting.value = null
+  // Deleting is reached from inside the dialog, so the dialog goes too.
+  photoDialog.value?.close()
+  editingPhoto.value = null
 }
 </script>
 
@@ -301,9 +326,11 @@ async function deletePhoto(photo: PhotoRow) {
               {{ mapPoints.length ? 'See the map' : 'Place it on the map' }}
               &darr;
             </a>
-            <button v-if="isEditor" class="ghost" @click="editor?.show()">
-              Edit trip
-            </button>
+            <EditButton
+              v-if="isEditor"
+              :label="`Edit ${data.trip.title}`"
+              @click="editor?.show()"
+            />
           </div>
         </div>
       </header>
@@ -360,14 +387,11 @@ async function deletePhoto(photo: PhotoRow) {
 
               <div class="tile-foot">
                 <p v-if="photo.id === badgePhotoId" class="is-badge">★ Badge</p>
-                <button
+                <EditButton
                   v-if="isEditor"
-                  class="delete"
-                  :disabled="deleting === photo.id"
-                  @click="deletePhoto(photo)"
-                >
-                  {{ deleting === photo.id ? 'Deleting…' : 'Delete' }}
-                </button>
+                  :label="`Edit ${photo.caption || 'this photo'}`"
+                  @click="openPhoto(photo)"
+                />
               </div>
             </li>
           </ul>
@@ -387,10 +411,41 @@ async function deletePhoto(photo: PhotoRow) {
         </ClientOnly>
 
         <p v-if="isEditor && !mapPoints.length" class="empty">
-          Nothing placed yet. Points are set in "Edit trip" and in each
-          campsite's own form.
+          Nothing placed yet. Points are set by the pencil beside the trip's
+          title, and in each campsite's own form.
         </p>
       </section>
+
+      <!-- Photos have no update route — caption and filing are fixed at upload
+           time — so this is not an editor. It is where the two things you can
+           still do to a photo live, off the page and each behind a deliberate
+           click. -->
+      <dialog ref="photoDialog" class="photo-dialog" @click="onPhotoDialogClick">
+        <div v-if="editingPhoto" class="photo-dialog-inner">
+          <img :src="thumb(editingPhoto.storage_path)" :alt="editingPhoto.caption ?? ''" />
+          <h2>{{ editingPhoto.caption || 'Untitled photo' }}</h2>
+
+          <p v-if="editingPhoto.id === badgePhotoId" class="already-badge">
+            ★ This is the trip's badge.
+          </p>
+          <button v-else class="ghost" @click="badgeFromDialog()">
+            ☆ Set as trip badge
+          </button>
+
+          <p v-if="deleteError" class="error">{{ deleteError }}</p>
+
+          <div class="form-foot">
+            <button
+              class="delete"
+              :disabled="deleting === editingPhoto.id"
+              @click="deletePhoto(editingPhoto)"
+            >
+              {{ deleting === editingPhoto.id ? 'Deleting…' : 'Delete photo' }}
+            </button>
+            <button class="ghost" @click="photoDialog?.close()">Close</button>
+          </div>
+        </div>
+      </dialog>
 
       <dialog ref="picker" class="picker" @click="onPickerClick">
         <div class="picker-head">
@@ -656,6 +711,53 @@ h1 {
 .delete:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Small and centred: it holds two actions, not a form. */
+.photo-dialog {
+  color: #e2e8f0;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+}
+
+.photo-dialog::backdrop {
+  background: #0f172abf;
+}
+
+.photo-dialog-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.photo-dialog img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 0.5rem;
+}
+
+.photo-dialog h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.already-badge {
+  margin: 0;
+  color: #fbbf24;
+  font-size: 0.85rem;
+}
+
+.form-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
 }
 
 .picker {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TRIP_COLOURS, type MapPoint } from '~/components/TripMap.vue'
+import type { MapPoint } from '~/components/TripMap.vue'
 
 useHead({
   title: 'Maps — Kayak Trips',
@@ -56,8 +56,7 @@ const colourOf = computed(() => {
 })
 
 function swatch(tripId: string) {
-  const index = colourOf.value.get(tripId) ?? 0
-  return TRIP_COLOURS[index % TRIP_COLOURS.length]
+  return tripColour(colourOf.value.get(tripId) ?? 0)
 }
 
 // Every trip's points on one map. Marker ids are prefixed by trip because two
@@ -141,8 +140,8 @@ function pointCount(tripId: string) {
     <p v-if="error" class="error">Couldn't load the map: {{ error.message }}</p>
 
     <p v-else-if="!points.length" class="empty">
-      Nothing placed yet. Open a trip and use "Edit trip" to set its put-in and
-      take-out.
+      Nothing placed yet. Open a trip and use the pencil beside its title to set
+      the put-in and take-out.
     </p>
 
     <template v-else>

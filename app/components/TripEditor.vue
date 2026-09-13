@@ -23,6 +23,37 @@ const emit = defineEmits<{ saved: [EditableTrip] }>()
 
 
 const dialog = ref<HTMLDialogElement | null>(null)
+
+// Deleting a trip is the one act here that takes other rows with it, so it
+// hides until asked for and then wants the title typed. Campsites cascade;
+// photos survive with a null trip_id, which is what the copy says.
+const armDelete = ref(false)
+const deleteConfirm = ref('')
+const deleteError = ref('')
+const deleting = ref(false)
+
+async function removeTrip() {
+  if (deleteConfirm.value.trim() !== props.trip.title || deleting.value) return
+
+  deleting.value = true
+  deleteError.value = ''
+
+  try {
+    await $fetch(`/api/trips/${props.trip.slug}`, { method: 'DELETE' })
+  } catch (error) {
+    deleting.value = false
+    deleteError.value =
+      (error as { statusCode?: number })?.statusCode === 401
+        ? 'That was refused. Are you still signed in?'
+        : ((error as { statusMessage?: string })?.statusMessage ??
+          'That trip was not deleted.')
+    return
+  }
+
+  // The page this dialog sits on is about to stop existing, so leave rather
+  // than close and re-render a trip that has gone.
+  await navigateTo('/trips')
+}
 const saving = ref(false)
 const formError = ref('')
 
@@ -298,9 +329,39 @@ async function save() {
 
       <p v-if="formError" class="error">{{ formError }}</p>
 
-      <button type="submit" class="primary" :disabled="saving">
-        {{ saving ? 'Saving…' : 'Save changes' }}
-      </button>
+      <div class="form-foot">
+        <button type="button" class="danger-link" @click="armDelete = !armDelete">
+          {{ armDelete ? 'Never mind' : 'Delete this trip' }}
+        </button>
+
+        <button type="submit" class="primary" :disabled="saving">
+          {{ saving ? 'Saving…' : 'Save changes' }}
+        </button>
+      </div>
+
+      <!-- Two steps, because this is the only action here that destroys
+           anything the owner can't retype. Typing the title is the confirmation:
+           a trip is deleted rarely enough that the friction costs nothing, and
+           it makes deleting the wrong trip from a list of similar names hard. -->
+      <div v-if="armDelete" class="danger">
+        <p class="danger-what">
+          Deletes <strong>{{ props.trip.title }}</strong> and its campsites.
+          Photos filed under it survive, unfiled, in the gallery.
+        </p>
+        <label>
+          Type the trip's name to confirm
+          <input v-model="deleteConfirm" type="text" :placeholder="props.trip.title" />
+        </label>
+        <p v-if="deleteError" class="error">{{ deleteError }}</p>
+        <button
+          type="button"
+          class="delete"
+          :disabled="deleteConfirm.trim() !== props.trip.title || deleting"
+          @click="removeTrip"
+        >
+          {{ deleting ? 'Deleting…' : 'Delete permanently' }}
+        </button>
+      </div>
     </form>
   </dialog>
 </template>
@@ -460,6 +521,87 @@ textarea {
 .ghost.small {
   font-size: 0.8rem;
   padding: 0.25rem 0.6rem;
+}
+
+.form-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Quiet until wanted: a link rather than a button, so it doesn't compete with
+   Save for attention. */
+.danger-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #64748b;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.danger-link:hover {
+  color: #fb7185;
+}
+
+.danger {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid #7f1d1d;
+  border-radius: 0.5rem;
+  background: #450a0a33;
+}
+
+.danger-what {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #fca5a5;
+}
+
+.danger label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.danger input {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 0.35rem;
+  color: #e2e8f0;
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+}
+
+.delete {
+  align-self: flex-start;
+  background: none;
+  border: 1px solid #7f1d1d;
+  color: #fb7185;
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.8rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.delete:hover:not(:disabled) {
+  background: #7f1d1d;
+  color: #fff;
+}
+
+.delete:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .primary {

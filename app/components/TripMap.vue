@@ -19,21 +19,6 @@ export type MapPoint = {
   colour?: number
 }
 
-// Enough hues to tell a handful of trips apart at a glance, chosen to stay
-// legible on the dark palette and distinguishable from each other. Cycled, so
-// a tenth trip repeats the first — by then the list beneath the map is doing
-// more work than the colour is.
-export const TRIP_COLOURS = [
-  '#38bdf8',
-  '#fbbf24',
-  '#4ade80',
-  '#f472b6',
-  '#a78bfa',
-  '#fb923c',
-  '#2dd4bf',
-  '#e879f9',
-]
-
 const props = defineProps<{
   points: MapPoint[]
   // When set, the next click on the map reports a coordinate instead of doing
@@ -84,7 +69,7 @@ function markerElement(point: MapPoint) {
   // A trip colour overrides the kind colour, so one trip's points read as a
   // set. The A/B/number glyph still says which kind each one is.
   if (point.colour !== undefined) {
-    el.style.background = TRIP_COLOURS[point.colour % TRIP_COLOURS.length]!
+    el.style.background = tripColour(point.colour)
   }
   return el
 }
