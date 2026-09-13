@@ -79,10 +79,11 @@ One Cloudflare account, talked to directly from local dev. Resources:
 
 | | |
 | --- | --- |
-| Worker | `kayaktrips` → `https://kayaktrips.vixim.workers.dev` |
+| Worker | `kayaktrips` → `https://kayaktrips.vixim.net` (Custom Domain; the `workers.dev` route is disabled) |
 | D1 | `kayaktrips`, id `5fd4f60f-c024-49b4-8cf8-20950fde060f`, region OC |
 | R2 | `kayaktrips-photos`, region OC, **private** |
-| Access | team `vixim.cloudflareaccess.com`, app "Kayak Trips — editing" |
+| Access | team `vixim.cloudflareaccess.com`, app "Kayak Trips" |
+| Domain | `vixim.net` is the owner's umbrella, not this app's — hence the `kayaktrips.` subdomain, leaving room for siblings |
 
 Bindings live in `wrangler.jsonc`: `DB`, `PHOTOS`, `ASSETS`, `IMAGES`.
 
@@ -94,7 +95,7 @@ updated asset files to upload" and the previous build keeps serving — while th
 build, the upload, the version and the deployment all report success. One
 guaranteed-changed asset per build makes it process the whole manifest.
 
-**Check `https://kayaktrips.vixim.workers.dev/_build-id.txt` after deploying.**
+**Check `https://kayaktrips.vixim.net/_build-id.txt` after deploying.**
 If it doesn't match `git rev-parse --short HEAD`, the deploy didn't land, and
 nothing else will tell you.
 
@@ -298,6 +299,11 @@ Design intent worth preserving:
     Access never runs. Only the route check protects it.
   When adding an editable page, add it to the Access application's destinations
   *and* make sure its routes call `requireEditor()`.
+- ⚠️ **Access destinations are per hostname.** They name
+  `kayaktrips.vixim.net` explicitly, so putting the Worker on another hostname
+  leaves the editor pages ungated there until they are added. The write routes
+  would still refuse, so nothing could be changed — but the pages would be
+  reachable. Add the destinations *before* the hostname starts resolving.
 - **An unconfigured deployment refuses writes.** Missing `NUXT_ACCESS_AUD` or
   team domain means `editorEmail()` returns null rather than trusting anyone.
 - `useEditor()` asks `/api/me` and is **client-only on purpose** — rendering

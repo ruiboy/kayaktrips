@@ -6,7 +6,7 @@ trips.
 
 ## Status
 
-Live at **https://kayaktrips.vixim.workers.dev** (installable — "Add to Home
+Live at **https://kayaktrips.vixim.net** (installable — "Add to Home
 Screen").
 
 Trip records, campsites with ratings, photos filed against trips, and a map of
