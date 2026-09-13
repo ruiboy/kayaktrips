@@ -229,10 +229,21 @@ Design intent worth preserving:
 
 ## Auth
 
-- **Cloudflare Access, One-time PIN, no identity provider.** The allowlist is a
-  list of emails in the Access policy — dashboard config, not code. There is no
-  users table, no password handling, and no sign-up page. Team domain is
+- **Cloudflare Access, One-time PIN.** The allowlist is a list of emails in the
+  Access policy — dashboard config, not code. There is no users table, no
+  password handling, and no sign-up page. Team domain is
   `vixim.cloudflareaccess.com`; sessions last a month.
+- ⚠️ **One-time PIN has to be added as an identity provider.** It is the default
+  *only when no provider exists at all*. The account had Cloudflare's own
+  "Cloudflare" integration, so the login page offered nothing but a Cloudflare
+  account sign-in — which sent a first-time editor to dash.cloudflare.com
+  asking for a password he had no way to have. Fixed by adding One-time PIN
+  (Zero Trust → Integrations → Identity providers) and deleting the Cloudflare
+  one. The application also has `auto_redirect_to_identity` on, so with a
+  single provider there is no chooser screen at all.
+- ⚠️ **`GET /accounts/:id/access/identity_providers` lies to this token.** It
+  answers `success: true` with an empty list while the dashboard shows
+  providers. Don't infer login configuration from it — open the login page.
 - Not Supabase Auth any more, and not magic links: the old constraint was
   Supabase's 2-messages-per-hour default mailer. Access sends its own codes.
 - **Signing in is a navigation, not a page.** `AccountControl.vue` links to
