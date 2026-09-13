@@ -224,8 +224,8 @@ Design intent worth preserving:
 - Secrets live in `.env` (gitignored). `.env.example` documents the shape. The
   Cloudflare API token is the only real secret; the Access team domain and AUD
   are public identifiers and live in `wrangler.jsonc`.
-- **The token expires.** A lapsed one fails deploys with a 403 and the cause
-  isn't obvious from the error.
+- **The Cloudflare token expires 2027-09-30.** A lapsed one fails deploys with
+  a 403 and the cause isn't obvious from the error.
 
 ## Auth
 
