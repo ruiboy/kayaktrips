@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import type { MapPoint } from '~/components/TripMap.vue'
 
+export type TripPhoto = {
+  id: string
+  storage_path: string
+  caption: string | null
+}
+
 export type EditableTrip = {
   id: string
   // The trip is addressed by slug in the API, so the editor needs it even
   // though nothing here can change it.
   slug: string
+  badge_photo_id: string | null
   title: string
   start_date: string
   end_date: string
@@ -18,7 +25,12 @@ export type EditableTrip = {
   end_lon: number | null
 }
 
-const props = defineProps<{ trip: EditableTrip }>()
+const props = defineProps<{
+  trip: EditableTrip
+  // The trip's own photos, to pick a badge from. The picker doesn't render
+  // when a trip has none.
+  photos: TripPhoto[]
+}>()
 const emit = defineEmits<{ saved: [EditableTrip] }>()
 
 
@@ -68,6 +80,7 @@ const draft = reactive({
   start_lon: '',
   end_lat: '',
   end_lon: '',
+  badge_photo_id: null as string | null,
 })
 
 const asText = (value: number | null) => (value === null ? '' : String(value))
@@ -76,6 +89,7 @@ function show() {
   formError.value = ''
   target.value = 'start'
   Object.assign(draft, {
+    badge_photo_id: props.trip.badge_photo_id,
     title: props.trip.title,
     start_date: props.trip.start_date,
     end_date: props.trip.end_date,
@@ -208,6 +222,9 @@ async function save() {
     start_lon: numberOrNull(draft.start_lon),
     end_lat: numberOrNull(draft.end_lat),
     end_lon: numberOrNull(draft.end_lon),
+    // Chosen here rather than from the page: the badge is a property of the
+    // trip, so it saves with the rest of it instead of writing through on click.
+    badge_photo_id: draft.badge_photo_id,
   }
 
   // The route returns the saved row, which is still the only proof the write
@@ -318,6 +335,33 @@ async function save() {
             Clear
           </button>
         </div>
+      </fieldset>
+
+      <fieldset v-if="photos.length" class="badge-field">
+        <legend>Badge</legend>
+        <p class="hint">The photo that stands for this trip in the list.</p>
+
+        <ul class="badge-strip">
+          <li v-for="photo in photos" :key="photo.id">
+            <button
+              type="button"
+              class="badge-pick"
+              :class="{ current: draft.badge_photo_id === photo.id }"
+              :aria-pressed="draft.badge_photo_id === photo.id"
+              :title="photo.caption ?? 'Untitled'"
+              @click="
+                draft.badge_photo_id =
+                  draft.badge_photo_id === photo.id ? null : photo.id
+              "
+            >
+              <img
+                :src="thumbUrl(photo.storage_path)"
+                :alt="photo.caption ?? ''"
+                loading="lazy"
+              />
+            </button>
+          </li>
+        </ul>
       </fieldset>
 
       <MapPickerDialog
@@ -521,6 +565,47 @@ textarea {
 .ghost.small {
   font-size: 0.8rem;
   padding: 0.25rem 0.6rem;
+}
+
+/* A strip rather than a grid: the badge is one choice among a trip's photos,
+   and a full gallery inside an edit form would bury the fields below it. */
+.badge-strip {
+  list-style: none;
+  display: flex;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.2rem 0 0.4rem;
+  overflow-x: auto;
+}
+
+.badge-pick {
+  display: block;
+  padding: 0;
+  background: none;
+  border: 2px solid transparent;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.badge-pick img {
+  width: 4.5rem;
+  height: 3.4rem;
+  object-fit: cover;
+  border-radius: 0.25rem;
+  opacity: 0.6;
+}
+
+.badge-pick:hover img {
+  opacity: 0.85;
+}
+
+.badge-pick.current {
+  border-color: #38bdf8;
+}
+
+.badge-pick.current img {
+  opacity: 1;
 }
 
 .form-foot {

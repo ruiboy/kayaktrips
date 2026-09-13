@@ -264,12 +264,21 @@ function ratingText(value: number | null) {
           </div>
         </dl>
 
-        <p v-if="site.lat !== null && site.lon !== null" class="coords">
-          {{ site.lat }}, {{ site.lon }}
-        </p>
-
-        <div v-if="isEditor" class="site-actions">
-          <EditButton :label="`Edit ${site.name}`" @click="openEdit(site)" />
+        <!-- Coordinates and the pencil share the last line, so the card ends
+             on one row rather than leaving a control adrift beneath it. The row
+             is rendered whenever either half has something to show. -->
+        <div
+          v-if="isEditor || (site.lat !== null && site.lon !== null)"
+          class="site-foot"
+        >
+          <p v-if="site.lat !== null && site.lon !== null" class="coords">
+            {{ site.lat }}, {{ site.lon }}
+          </p>
+          <EditButton
+            v-if="isEditor"
+            :label="`Edit ${site.name}`"
+            @click="openEdit(site)"
+          />
         </div>
       </li>
     </ol>
@@ -589,10 +598,14 @@ function ratingText(value: number | null) {
   flex-wrap: wrap;
 }
 
-.site-actions {
+/* Coordinates left, pencil hard right, on the card's last line. */
+.site-foot {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
-  margin-top: 1rem;
+  margin-top: 0.5rem;
+  min-height: 1.75rem;
 }
 
 /* Spread across the column: equal cells that fill the width and drop to fewer

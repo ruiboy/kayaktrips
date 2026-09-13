@@ -71,7 +71,7 @@ function publicUrl(path: string) {
 }
 
 // Everything on this page draws small — the hero badge, the photo grid, the
-// badge picker. Only the click-through wants the original.
+// badge strip. Only the click-through wants the original.
 function thumb(path: string) {
   return thumbUrl(path)
 }
@@ -79,7 +79,6 @@ function thumb(path: string) {
 // Held locally so the tick moves the moment the update lands, rather than
 // waiting on a refetch of the whole page.
 const badgePhotoId = ref(data.value?.trip.badge_photo_id ?? null)
-const badgeError = ref('')
 
 // Found among the trip's own photos rather than fetched again, so choosing a
 // new badge updates the header immediately. Nothing in the database stops a
@@ -94,59 +93,58 @@ const badgePhoto = computed(
 const photoDialog = ref<HTMLDialogElement | null>(null)
 const editingPhoto = ref<PhotoRow | null>(null)
 
+const captionDraft = ref('')
+const savingCaption = ref(false)
+// One line for both failures the dialog can produce, since only one of them
+// can be on screen at a time.
+const photoError = computed(() => deleteError.value || captionError.value)
+const captionError = ref('')
+
 function openPhoto(photo: PhotoRow) {
   editingPhoto.value = photo
+  captionDraft.value = photo.caption ?? ''
   deleteError.value = ''
+  captionError.value = ''
   photoDialog.value?.showModal()
+}
+
+async function saveCaption() {
+  const photo = editingPhoto.value
+  if (!photo || savingCaption.value) return
+
+  const next = captionDraft.value.trim()
+  if (next === (photo.caption ?? '')) {
+    photoDialog.value?.close()
+    return
+  }
+
+  savingCaption.value = true
+  captionError.value = ''
+
+  try {
+    const saved = await $fetch<PhotoRow>(`/api/photos/${photo.id}`, {
+      method: 'PATCH',
+      body: { caption: next },
+    })
+    // Folded back in rather than refetched, so the tile and the header update
+    // the moment it lands.
+    photo.caption = saved.caption
+  } catch (error) {
+    savingCaption.value = false
+    captionError.value =
+      (error as { statusCode?: number })?.statusCode === 401
+        ? 'That was refused. Are you still signed in?'
+        : ((error as { statusMessage?: string })?.statusMessage ??
+          'That caption did not save.')
+    return
+  }
+
+  savingCaption.value = false
+  photoDialog.value?.close()
 }
 
 function onPhotoDialogClick(event: MouseEvent) {
   if (event.target === photoDialog.value) photoDialog.value?.close()
-}
-
-async function badgeFromDialog() {
-  if (!editingPhoto.value) return
-  const id = editingPhoto.value.id
-  photoDialog.value?.close()
-  await setBadge(id)
-}
-
-// A native <dialog> rather than a hand-rolled overlay: Escape to dismiss and
-// the focus trap come with it.
-const picker = ref<HTMLDialogElement | null>(null)
-
-function openPicker() {
-  badgeError.value = ''
-  picker.value?.showModal()
-}
-
-// <dialog> treats a backdrop click as a click on the dialog itself, so this
-// only fires outside the panel.
-function onPickerClick(event: MouseEvent) {
-  if (event.target === picker.value) picker.value?.close()
-}
-
-async function setBadge(photoId: string) {
-  if (!data.value) return
-
-  picker.value?.close()
-  if (photoId === badgePhotoId.value) return
-
-  const previous = badgePhotoId.value
-  badgePhotoId.value = photoId
-  badgeError.value = ''
-
-  try {
-    await $fetch(`/api/trips/${data.value.trip.slug}`, {
-      method: 'PATCH',
-      body: { badge_photo_id: photoId },
-    })
-  } catch (updateError) {
-    badgePhotoId.value = previous
-    badgeError.value =
-      (updateError as { statusMessage?: string })?.statusMessage ??
-      'the change was refused. Are you still signed in?'
-  }
 }
 
 // ---- Map -------------------------------------------------------------------
@@ -221,6 +219,7 @@ const editor = ref<{ show: () => void } | null>(null)
 // returned row back into the page so the header, the map and the dates update
 // without a refetch.
 function onTripSaved(row: {
+  badge_photo_id: string | null
   title: string
   start_date: string
   end_date: string
@@ -234,6 +233,8 @@ function onTripSaved(row: {
 }) {
   if (!data.value) return
   Object.assign(data.value.trip, row)
+  // The badge is edited with the trip now, so the header follows the save.
+  badgePhotoId.value = row.badge_photo_id
   startPoint.value =
     row.start_lat != null && row.start_lon != null
       ? [row.start_lat, row.start_lon]
@@ -339,6 +340,7 @@ async function deletePhoto(photo: PhotoRow) {
         v-if="isEditor"
         ref="editor"
         :trip="data.trip"
+        :photos="data.photos"
         @saved="onTripSaved"
       />
 
@@ -356,9 +358,6 @@ async function deletePhoto(photo: PhotoRow) {
           <div class="photos-head">
             <h2>Photos</h2>
             <div v-if="isEditor" class="photo-actions">
-              <button v-if="data.photos.length" class="ghost" @click="openPicker">
-                Choose badge
-              </button>
               <NuxtLink class="ghost" :to="`/upload?trip=${data.trip.slug}`">
                 Add a photo
               </NuxtLink>
@@ -369,30 +368,34 @@ async function deletePhoto(photo: PhotoRow) {
             Nothing filed under this trip yet.
           </p>
 
-          <p v-if="badgeError" class="error">
-            Couldn't set the badge: {{ badgeError }}
-          </p>
           <p v-if="deleteError" class="error">{{ deleteError }}</p>
 
           <ul v-if="data.photos.length" class="grid">
             <li v-for="photo in data.photos" :key="photo.id">
-              <a :href="publicUrl(photo.storage_path)" target="_blank" rel="noopener">
-                <img
-                  :src="thumb(photo.storage_path)"
-                  :alt="photo.caption ?? ''"
-                  loading="lazy"
-                />
-              </a>
-              <p v-if="photo.caption" class="caption">{{ photo.caption }}</p>
-
-              <div class="tile-foot">
-                <p v-if="photo.id === badgePhotoId" class="is-badge">★ Badge</p>
+              <!-- The pencil sits on the image rather than beside the caption:
+                   every image is the same 4:3 box, so it lands in the same
+                   place on every tile, while captions vary in length and left a
+                   row of pencils at ragged heights. -->
+              <div class="shot">
+                <a :href="publicUrl(photo.storage_path)" target="_blank" rel="noopener">
+                  <img
+                    :src="thumb(photo.storage_path)"
+                    :alt="photo.caption ?? ''"
+                    loading="lazy"
+                  />
+                </a>
                 <EditButton
                   v-if="isEditor"
+                  class="on-image"
                   :label="`Edit ${photo.caption || 'this photo'}`"
                   @click="openPhoto(photo)"
                 />
               </div>
+
+              <p v-if="photo.caption || photo.id === badgePhotoId" class="caption">
+                <span v-if="photo.id === badgePhotoId" class="is-badge" title="Trip badge">★</span>
+                {{ photo.caption }}
+              </p>
             </li>
           </ul>
         </section>
@@ -423,16 +426,19 @@ async function deletePhoto(photo: PhotoRow) {
       <dialog ref="photoDialog" class="photo-dialog" @click="onPhotoDialogClick">
         <div v-if="editingPhoto" class="photo-dialog-inner">
           <img :src="thumb(editingPhoto.storage_path)" :alt="editingPhoto.caption ?? ''" />
-          <h2>{{ editingPhoto.caption || 'Untitled photo' }}</h2>
 
-          <p v-if="editingPhoto.id === badgePhotoId" class="already-badge">
-            ★ This is the trip's badge.
-          </p>
-          <button v-else class="ghost" @click="badgeFromDialog()">
-            ☆ Set as trip badge
-          </button>
+          <label class="caption-field">
+            Caption
+            <input
+              v-model="captionDraft"
+              type="text"
+              maxlength="200"
+              placeholder="No caption"
+              @keydown.enter.prevent="saveCaption"
+            />
+          </label>
 
-          <p v-if="deleteError" class="error">{{ deleteError }}</p>
+          <p v-if="photoError" class="error">{{ photoError }}</p>
 
           <div class="form-foot">
             <button
@@ -442,38 +448,16 @@ async function deletePhoto(photo: PhotoRow) {
             >
               {{ deleting === editingPhoto.id ? 'Deleting…' : 'Delete photo' }}
             </button>
-            <button class="ghost" @click="photoDialog?.close()">Close</button>
+            <div class="foot-right">
+              <button class="ghost" @click="photoDialog?.close()">Cancel</button>
+              <button class="primary" :disabled="savingCaption" @click="saveCaption">
+                {{ savingCaption ? 'Saving…' : 'Save' }}
+              </button>
+            </div>
           </div>
         </div>
       </dialog>
 
-      <dialog ref="picker" class="picker" @click="onPickerClick">
-        <div class="picker-head">
-          <h2>Choose the badge</h2>
-          <button class="ghost" @click="picker?.close()">Close</button>
-        </div>
-        <p class="picker-lede">
-          The badge is the photo that stands for this trip in the list.
-        </p>
-
-        <ul class="picker-grid">
-          <li v-for="photo in data.photos" :key="photo.id">
-            <button
-              class="pick"
-              :class="{ current: photo.id === badgePhotoId }"
-              :aria-current="photo.id === badgePhotoId ? 'true' : undefined"
-              @click="setBadge(photo.id)"
-            >
-              <img
-                :src="thumb(photo.storage_path)"
-                :alt="photo.caption ?? ''"
-                loading="lazy"
-              />
-              <span>{{ photo.caption || 'Untitled' }}</span>
-            </button>
-          </li>
-        </ul>
-      </dialog>
     </template>
   </main>
 </template>
@@ -669,25 +653,40 @@ h1 {
   background: #1e293b;
 }
 
+.shot {
+  position: relative;
+}
+
+/* A dark disc so it reads over a bright photo as well as a dark one, quiet
+   until the pointer is near, and still visible at rest on touch where there is
+   no hover to reveal it. */
+.on-image {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  background: #0f172ab3;
+  color: #e2e8f0;
+  border-color: transparent;
+  opacity: 0.75;
+}
+
+.shot:hover .on-image,
+.on-image:focus-visible {
+  opacity: 1;
+  background: #0f172ae6;
+  color: #38bdf8;
+}
+
 .caption {
   margin: 0.5rem 0 0;
   font-size: 0.9rem;
   line-height: 1.4;
-}
-
-.tile-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-top: 0.4rem;
-  min-height: 1.5rem;
+  min-width: 0;
 }
 
 .is-badge {
-  margin: 0;
-  font-size: 0.8rem;
   color: #38bdf8;
+  margin-right: 0.15rem;
 }
 
 /* Quiet until you reach for it — destructive, but not the point of the page. */
@@ -760,90 +759,4 @@ h1 {
   margin-top: 0.25rem;
 }
 
-.picker {
-  width: min(38rem, calc(100vw - 2rem));
-  background: #1e293b;
-  color: #e2e8f0;
-  border: 1px solid #334155;
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-}
-
-.picker::backdrop {
-  background: rgb(15 23 42 / 0.7);
-}
-
-.picker-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.picker-head h2 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.picker-lede {
-  margin: 0.5rem 0 1.25rem;
-  color: #94a3b8;
-  font-size: 0.9rem;
-}
-
-.picker-grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
-  gap: 1rem;
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-.pick {
-  width: 100%;
-  background: none;
-  border: none;
-  padding: 0;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Circular, because that's how the badge renders on the trips list — the
-   preview should show the crop you're actually choosing. */
-.pick img {
-  width: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: 50%;
-  display: block;
-  background: #0f172a;
-  border: 2px solid transparent;
-}
-
-.pick:hover img {
-  border-color: #38bdf8;
-}
-
-.pick.current img {
-  border-color: #38bdf8;
-}
-
-.pick span {
-  font-size: 0.8rem;
-  color: #94a3b8;
-  text-align: center;
-  overflow-wrap: anywhere;
-}
-
-.pick.current span {
-  color: #38bdf8;
-}
 </style>
