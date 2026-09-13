@@ -84,8 +84,24 @@ One Cloudflare account, talked to directly from local dev. Resources:
 | R2 | `kayaktrips-photos`, region OC, **private** |
 | Access | team `vixim.cloudflareaccess.com`, app "Kayak Trips — editing" |
 
-Bindings live in `wrangler.jsonc`: `DB`, `PHOTOS`, `ASSETS`. Deploy with
-`npx wrangler deploy` after `npm run build`.
+Bindings live in `wrangler.jsonc`: `DB`, `PHOTOS`, `ASSETS`, `IMAGES`.
+
+⚠️ **Deploy with `npm run deploy`, never bare `wrangler deploy`.** It builds,
+stamps `.output/public/_build-id.txt` with the commit and time, then deploys.
+The stamp is load-bearing: cloudflare/workers-sdk#12586 makes the asset upload
+session return empty buckets for genuinely new assets, so wrangler prints "No
+updated asset files to upload" and the previous build keeps serving — while the
+build, the upload, the version and the deployment all report success. One
+guaranteed-changed asset per build makes it process the whole manifest.
+
+**Check `https://kayaktrips.vixim.workers.dev/_build-id.txt` after deploying.**
+If it doesn't match `git rev-parse --short HEAD`, the deploy didn't land, and
+nothing else will tell you.
+
+If a hostname gets stuck on a stale manifest anyway — the stamp did not rescue
+this Worker once it had — `wrangler delete --name kayaktrips` then redeploy.
+Safe: the data is in D1 and R2, every binding is declared in wrangler.jsonc,
+and the Access application points at the hostname rather than the script.
 
 **No migration files yet**, same as before — that ceremony isn't worth it until
 there's real user data. When it is, D1 has `wrangler d1 migrations`.
