@@ -131,7 +131,7 @@ async function handleUpload() {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <NuxtLink class="back" to="/">&larr; Back</NuxtLink>
+      <BreadCrumbs :trail="[{ label: 'Home', to: '/' }, { label: 'Photos', to: '/photos' }, { label: 'Upload' }]" />
       <AccountControl />
     </div>
 
@@ -206,11 +206,6 @@ async function handleUpload() {
   flex-wrap: wrap;
 }
 
-.back {
-  color: #38bdf8;
-  text-decoration: none;
-  font-size: 0.9rem;
-}
 
 h1 {
   margin: 1rem 0 0.5rem;

@@ -260,7 +260,13 @@ async function deletePhoto(photo: PhotoRow) {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <NuxtLink class="back" to="/trips">&larr; All trips</NuxtLink>
+      <BreadCrumbs
+        :trail="[
+          { label: 'Home', to: '/' },
+          { label: 'Trips', to: '/trips' },
+          { label: data.trip.title },
+        ]"
+      />
       <AccountControl />
     </div>
 
@@ -490,11 +496,6 @@ async function deletePhoto(photo: PhotoRow) {
   flex-wrap: wrap;
 }
 
-.back {
-  color: #38bdf8;
-  text-decoration: none;
-  font-size: 0.9rem;
-}
 
 .trip-head {
   display: flex;

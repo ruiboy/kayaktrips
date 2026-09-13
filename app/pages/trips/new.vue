@@ -74,7 +74,7 @@ async function createTrip() {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <NuxtLink class="back" to="/trips">&larr; All trips</NuxtLink>
+      <BreadCrumbs :trail="[{ label: 'Home', to: '/' }, { label: 'Trips', to: '/trips' }, { label: 'New trip' }]" />
       <AccountControl />
     </div>
     <h1>New trip</h1>
@@ -154,11 +154,6 @@ async function createTrip() {
   flex-wrap: wrap;
 }
 
-.back {
-  color: #38bdf8;
-  text-decoration: none;
-  font-size: 0.9rem;
-}
 
 h1 {
   margin: 1rem 0 0.5rem;

@@ -43,7 +43,7 @@ function badgeUrl(trip: TripRow) {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <NuxtLink class="back" to="/">&larr; Back</NuxtLink>
+      <BreadCrumbs :trail="[{ label: 'Home', to: '/' }, { label: 'Trips' }]" />
       <div class="topbar-right">
         <NuxtLink v-if="isEditor" class="new" to="/trips/new">New trip</NuxtLink>
         <AccountControl />
@@ -109,7 +109,6 @@ function badgeUrl(trip: TripRow) {
   min-width: 0;
 }
 
-.back,
 .new {
   color: #38bdf8;
   text-decoration: none;
