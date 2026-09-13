@@ -236,11 +236,17 @@ Design intent worth preserving:
 - Not Supabase Auth any more, and not magic links: the old constraint was
   Supabase's 2-messages-per-hour default mailer. Access sends its own codes.
 - **Signing in is a navigation, not a page.** `AccountControl.vue` links to
-  `/upload` with a plain `<a>`; Access challenges at the edge and returns you
-  there. A client-side route change never reaches the edge, so `NuxtLink` would
-  silently not log you in. Sign-out is Access's `/cdn-cgi/access/logout`.
-- **Two layers, and they are not interchangeable.** Access covers the two
-  editor *pages* (`/upload`, `/trips/new`). Every write route separately
+  `/signin` with a plain `<a>`; Access challenges at the edge and the page
+  bounces you back to wherever you clicked from. A client-side route change
+  never reaches the edge, so `NuxtLink` would silently not log you in.
+  Sign-out is Access's `/cdn-cgi/access/logout`.
+- **`/signin` exists only to be gated.** It renders nothing and holds no logic
+  beyond the bounce. It replaced pointing "Sign in" at `/upload`, which worked
+  but sent first-time editors to an upload form and lost them. Its `?next=`
+  honours internal paths only — anyone can reach the page, so an absolute URL
+  there would be an open redirect.
+- **Two layers, and they are not interchangeable.** Access covers `/signin`
+  and the two editor *pages* (`/upload`, `/trips/new`). Every write route separately
   verifies the token via `requireEditor()`. Both are needed:
   - Access matches on **path and cannot see the method**. `/api/trips` serves
     public GETs and editor POSTs on one path, so gating it would take the

@@ -110,10 +110,16 @@ manifest's `background_color`:
 Public read, gated editing, enforced in two places that are **not**
 interchangeable.
 
-**Cloudflare Access** covers the two editor pages, `/upload` and `/trips/new`.
-Visiting one gets you a Cloudflare login: enter an allowlisted email, get a
-six-digit code, and the session lasts a month. There is no login page in this
-app, no users table, and no password handling.
+**Cloudflare Access** covers `/signin` and the two editor pages, `/upload` and
+`/trips/new`. Visiting one gets you a Cloudflare login: enter an allowlisted
+email, get a six-digit code, and the session lasts a month. There is no login
+page in this app, no users table, and no password handling.
+
+The "Sign in" link goes to `/signin`, which exists only to be a path Access
+gates — it renders nothing and returns you to wherever you clicked from. The
+login page itself is Cloudflare-branded and lives on
+`vixim.cloudflareaccess.com`; `dash.cloudflare.com` is a different thing
+entirely and editors do not need an account there.
 
 **Every write route** separately verifies the Access token
 (`requireEditor()` in `server/utils/access.ts`). Both layers are needed:
