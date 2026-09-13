@@ -90,61 +90,20 @@ const badgePhoto = computed(
 
 // The per-photo dialog. Opened by the pencil on a tile; holds the badge
 // control and Delete, so neither sits on the page where a reader's thumb is.
-const photoDialog = ref<HTMLDialogElement | null>(null)
-const editingPhoto = ref<PhotoRow | null>(null)
+const photoDialog = ref<{ show: (photo: PhotoRow) => void } | null>(null)
 
-const captionDraft = ref('')
-const savingCaption = ref(false)
-// One line for both failures the dialog can produce, since only one of them
-// can be on screen at a time.
-const photoError = computed(() => deleteError.value || captionError.value)
-const captionError = ref('')
-
-function openPhoto(photo: PhotoRow) {
-  editingPhoto.value = photo
-  captionDraft.value = photo.caption ?? ''
-  deleteError.value = ''
-  captionError.value = ''
-  photoDialog.value?.showModal()
+// Folded back in rather than refetched, so the tile and the header follow the
+// dialog closing.
+function onPhotoSaved(saved: { id: string; caption: string | null }) {
+  const row = data.value?.photos.find((photo) => photo.id === saved.id)
+  if (row) row.caption = saved.caption
 }
 
-async function saveCaption() {
-  const photo = editingPhoto.value
-  if (!photo || savingCaption.value) return
-
-  const next = captionDraft.value.trim()
-  if (next === (photo.caption ?? '')) {
-    photoDialog.value?.close()
-    return
-  }
-
-  savingCaption.value = true
-  captionError.value = ''
-
-  try {
-    const saved = await $fetch<PhotoRow>(`/api/photos/${photo.id}`, {
-      method: 'PATCH',
-      body: { caption: next },
-    })
-    // Folded back in rather than refetched, so the tile and the header update
-    // the moment it lands.
-    photo.caption = saved.caption
-  } catch (error) {
-    savingCaption.value = false
-    captionError.value =
-      (error as { statusCode?: number })?.statusCode === 401
-        ? 'That was refused. Are you still signed in?'
-        : ((error as { statusMessage?: string })?.statusMessage ??
-          'That caption did not save.')
-    return
-  }
-
-  savingCaption.value = false
-  photoDialog.value?.close()
-}
-
-function onPhotoDialogClick(event: MouseEvent) {
-  if (event.target === photoDialog.value) photoDialog.value?.close()
+function onPhotoDeleted(id: string) {
+  if (!data.value) return
+  data.value.photos = data.value.photos.filter((photo) => photo.id !== id)
+  // The FK is `on delete set null`, so the trip has already lost its badge.
+  if (badgePhotoId.value === id) badgePhotoId.value = null
 }
 
 // ---- Map -------------------------------------------------------------------
@@ -243,44 +202,6 @@ function onTripSaved(row: {
     row.end_lat != null && row.end_lon != null ? [row.end_lat, row.end_lon] : null
 }
 
-// ---- Photos ----------------------------------------------------------------
-
-const deleting = ref<string | null>(null)
-const deleteError = ref('')
-
-async function deletePhoto(photo: PhotoRow) {
-  if (!data.value || deleting.value) return
-
-  const label = photo.caption ? `“${photo.caption}”` : 'this photo'
-  if (!confirm(`Delete ${label}? This can't be undone.`)) return
-
-  deleting.value = photo.id
-  deleteError.value = ''
-
-  // Only the id goes to the server. The route reads the row to find out which
-  // object to remove, so nothing here can name a file — and it still deletes
-  // the row before the object, so a failure can only orphan a file rather than
-  // leave a row pointing at a missing one.
-  try {
-    await $fetch(`/api/photos/${photo.id}`, { method: 'DELETE' })
-  } catch (rowError) {
-    deleting.value = null
-    deleteError.value =
-      (rowError as { statusCode?: number })?.statusCode === 401
-        ? "That photo wasn't deleted — are you still signed in?"
-        : ((rowError as { statusMessage?: string })?.statusMessage ??
-          "That photo wasn't deleted.")
-    return
-  }
-
-  data.value.photos = data.value.photos.filter((row) => row.id !== photo.id)
-  // The FK is `on delete set null`, so the trip has already lost its badge.
-  if (badgePhotoId.value === photo.id) badgePhotoId.value = null
-  deleting.value = null
-  // Deleting is reached from inside the dialog, so the dialog goes too.
-  photoDialog.value?.close()
-  editingPhoto.value = null
-}
 </script>
 
 <template>
@@ -362,7 +283,6 @@ async function deletePhoto(photo: PhotoRow) {
             Nothing filed under this trip yet.
           </p>
 
-          <p v-if="deleteError" class="error">{{ deleteError }}</p>
 
           <ul v-if="data.photos.length" class="grid">
             <li v-for="photo in data.photos" :key="photo.id">
@@ -385,7 +305,7 @@ async function deletePhoto(photo: PhotoRow) {
                   v-if="isEditor"
                   class="inline-edit"
                   :label="`Edit ${photo.caption || 'this photo'}`"
-                  @click="openPhoto(photo)"
+                  @click="photoDialog?.show(photo)"
                 />
               </p>
             </li>
@@ -411,44 +331,12 @@ async function deletePhoto(photo: PhotoRow) {
         </p>
       </section>
 
-      <!-- Photos have no update route — caption and filing are fixed at upload
-           time — so this is not an editor. It is where the two things you can
-           still do to a photo live, off the page and each behind a deliberate
-           click. -->
-      <dialog ref="photoDialog" class="photo-dialog" @click="onPhotoDialogClick">
-        <div v-if="editingPhoto" class="photo-dialog-inner">
-          <img :src="thumb(editingPhoto.storage_path)" :alt="editingPhoto.caption ?? ''" />
-
-          <label class="caption-field">
-            Caption
-            <input
-              v-model="captionDraft"
-              type="text"
-              maxlength="200"
-              placeholder="No caption"
-              @keydown.enter.prevent="saveCaption"
-            />
-          </label>
-
-          <p v-if="photoError" class="error">{{ photoError }}</p>
-
-          <div class="form-foot">
-            <button
-              class="delete"
-              :disabled="deleting === editingPhoto.id"
-              @click="deletePhoto(editingPhoto)"
-            >
-              {{ deleting === editingPhoto.id ? 'Deleting…' : 'Delete photo' }}
-            </button>
-            <div class="foot-right">
-              <button class="ghost" @click="photoDialog?.close()">Cancel</button>
-              <button class="primary" :disabled="savingCaption" @click="saveCaption">
-                {{ savingCaption ? 'Saving…' : 'Save' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </dialog>
+      <PhotoDialog
+        v-if="isEditor"
+        ref="photoDialog"
+        @saved="onPhotoSaved"
+        @deleted="onPhotoDeleted"
+      />
 
     </template>
   </main>
@@ -688,50 +576,4 @@ h1 {
 }
 
 /* Small and centred: it holds two actions, not a form. */
-.photo-dialog {
-  color: #e2e8f0;
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 0.75rem;
-  width: min(22rem, calc(100vw - 2rem));
-  padding: 1.25rem;
-}
-
-.photo-dialog::backdrop {
-  background: #0f172abf;
-}
-
-.photo-dialog-inner {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.photo-dialog img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  border-radius: 0.5rem;
-}
-
-.photo-dialog h2 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.already-badge {
-  margin: 0;
-  color: #fbbf24;
-  font-size: 0.85rem;
-}
-
-.form-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin-top: 0.25rem;
-}
-
 </style>

@@ -13,6 +13,19 @@ type PhotoRow = {
 
 const { isEditor } = useEditor()
 
+const photoDialog = ref<{ show: (photo: PhotoRow) => void } | null>(null)
+
+// Folded back in rather than refetched, so the tile changes the moment the
+// dialog closes.
+function onSaved(saved: { id: string; caption: string | null }) {
+  const row = photos.value?.find((photo) => photo.id === saved.id)
+  if (row) row.caption = saved.caption
+}
+
+function onDeleted(id: string) {
+  if (photos.value) photos.value = photos.value.filter((photo) => photo.id !== id)
+}
+
 // Public read, so this renders server-side for anonymous visitors too. The
 // route does the join that used to be a PostgREST embed naming its FK.
 // `useRequestFetch`, not bare `$fetch`: on Workers an internal fetch starts a
@@ -62,7 +75,19 @@ function formatDate(iso: string) {
             loading="lazy"
           />
         </a>
-        <p v-if="photo.caption" class="caption">{{ photo.caption }}</p>
+        <!-- Same shape as the trip page: the pencil runs on from the caption
+             text so it keeps to the last line of a wrapped one. An unfiled
+             photo has no trip page, so this is the only place it can be
+             edited at all. -->
+        <p v-if="photo.caption || isEditor" class="caption">
+          {{ photo.caption }}
+          <EditButton
+            v-if="isEditor"
+            class="inline-edit"
+            :label="`Edit ${photo.caption || 'this photo'}`"
+            @click="photoDialog?.show(photo)"
+          />
+        </p>
 
         <NuxtLink v-if="photo.trip" class="trip" :to="`/trips/${photo.trip.slug}`">
           {{ photo.trip.title }}
@@ -72,6 +97,13 @@ function formatDate(iso: string) {
         <time :datetime="photo.created_at">{{ formatDate(photo.created_at) }}</time>
       </li>
     </ul>
+
+    <PhotoDialog
+      v-if="isEditor"
+      ref="photoDialog"
+      @saved="onSaved"
+      @deleted="onDeleted"
+    />
   </main>
 </template>
 
@@ -143,6 +175,13 @@ h1 {
   border-radius: 0.5rem;
   display: block;
   background: #1e293b;
+}
+
+/* Sits in the text flow, so it trails the last word of a wrapped caption
+   rather than needing a column of its own. */
+.inline-edit {
+  vertical-align: -0.35em;
+  margin-left: 0.15rem;
 }
 
 .caption {

@@ -154,6 +154,10 @@ Design intent worth preserving:
 - **`trip_id` is nullable and means "not filed under a trip".** Rows that
   predate trips stay NULL, and filing still happens at upload time only — the
   picker on `/upload` sets it on insert.
+- **`PhotoDialog` is the only way to change a photo**, and it lives on both the
+  trip page and the gallery. The gallery needs it more: a photo with no
+  `trip_id` has no trip page, so before this there was nowhere to edit or
+  delete it from at all.
 - **`PATCH /api/photos/<id>` edits the caption and nothing else.** Its
   allowlist is one field long deliberately: fixing a typo is worth allowing,
   re-filing a photo is not, since `trip_id` is what the gallery and the trip
