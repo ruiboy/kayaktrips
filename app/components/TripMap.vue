@@ -60,18 +60,27 @@ const STYLE = {
 // Australia, so an empty map opens somewhere plausible rather than off Africa.
 const FALLBACK_CENTRE: [number, number] = [139.7, -34.3]
 
+// Two elements, not one: MapLibre owns `transform` on whatever element it is
+// given, using it to position the marker. Anything that wants to scale — which
+// focusing does — has to be inside that, or the pin detaches from its
+// coordinate.
 function markerElement(point: MapPoint) {
+  const anchor = document.createElement('div')
+  anchor.className = 'pin-anchor'
+  anchor.title = point.label
+
   const el = document.createElement('div')
   el.className = `pin pin-${point.kind}`
   el.textContent =
     point.kind === 'start' ? 'A' : point.kind === 'end' ? 'B' : (point.sub ?? '')
-  el.title = point.label
   // A trip colour overrides the kind colour, so one trip's points read as a
   // set. The A/B/number glyph still says which kind each one is.
   if (point.colour !== undefined) {
     el.style.background = tripColour(point.colour)
   }
-  return el
+
+  anchor.appendChild(el)
+  return anchor
 }
 
 // Trip titles and campsite names are typed by editors and land in the popup's
@@ -120,8 +129,10 @@ async function draw(maplibre: typeof import('maplibre-gl')) {
 
   for (const point of props.points) {
     const element = markerElement(point)
-    if (props.focusedTripId && point.tripId !== props.focusedTripId) {
-      element.classList.add('pin-dimmed')
+    if (props.focusedTripId) {
+      element.classList.add(
+        point.tripId === props.focusedTripId ? 'is-focused' : 'is-dimmed',
+      )
     }
     markers.push(
       new maplibre.Marker({ element })
@@ -348,15 +359,40 @@ onBeforeUnmount(() => {
   background: #38bdf8;
 }
 
-/* Focusing a trip dims the rest rather than hiding them: the others are the
-   context that makes the focused one mean something. Still clickable. */
-.pin-dimmed {
-  opacity: 0.22;
+/* Focusing works from both ends: the chosen trip grows and gains a ring, the
+   rest drop back to grey. Dimming alone was too quiet to find a trip by. The
+   others stay visible and clickable — they are the context that makes the
+   focused one mean anything. */
+.pin-anchor .pin {
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease,
+    box-shadow 0.15s ease,
+    filter 0.15s ease;
+}
+
+.pin-anchor.is-dimmed .pin {
+  opacity: 0.3;
+  filter: grayscale(1);
+  transform: scale(0.8);
   box-shadow: none;
 }
 
-.pin-dimmed:hover {
-  opacity: 0.6;
+.pin-anchor.is-dimmed:hover .pin {
+  opacity: 0.75;
+  filter: none;
+}
+
+.pin-anchor.is-focused {
+  z-index: 3;
+}
+
+.pin-anchor.is-focused .pin {
+  transform: scale(1.35);
+  border-color: #f8fafc;
+  box-shadow:
+    0 0 0 0.2rem #f8fafc66,
+    0 0.25rem 0.6rem rgb(0 0 0 / 0.55);
 }
 
 /* The popup's contents are built in `popupHtml` and live in MapLibre's DOM,

@@ -131,7 +131,7 @@ async function handleUpload() {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <BreadCrumbs :trail="[{ label: 'Home', to: '/' }, { label: 'Photos', to: '/photos' }, { label: 'Upload' }]" />
+      <SiteNav />
       <AccountControl />
     </div>
 

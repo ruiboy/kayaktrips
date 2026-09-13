@@ -130,7 +130,7 @@ function pointCount(tripId: string) {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <BreadCrumbs :trail="[{ label: 'Home', to: '/' }, { label: 'Maps' }]" />
+      <SiteNav />
       <AccountControl />
     </div>
 
@@ -167,7 +167,12 @@ function pointCount(tripId: string) {
            the overview survives the selection. The swatch is the same colour
            as that trip's pins. -->
       <ul class="key">
-        <li v-for="trip in plotted" :key="trip.id">
+        <li
+          v-for="trip in plotted"
+          :key="trip.id"
+          :class="{ chosen: focusedTripId === trip.id }"
+          :style="focusedTripId === trip.id ? { borderColor: swatch(trip.id) } : undefined"
+        >
           <button
             class="pick"
             :class="{ picked: focusedTripId === trip.id, muted: focusedTripId && focusedTripId !== trip.id }"
@@ -275,6 +280,15 @@ h1 {
   border: 1px solid #334155;
   border-radius: 0.5rem;
   padding: 0.4rem 0.6rem;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+/* Bordered in the trip's own colour, so the row and its pins are obviously the
+   same thing. */
+.key li.chosen {
+  background: #334155;
 }
 
 /* The whole row is the control, so the target is a row rather than a dot. */
@@ -298,7 +312,21 @@ h1 {
 }
 
 .pick.picked .name {
-  color: #38bdf8;
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.pick.picked .dot {
+  width: 0.9rem;
+  height: 0.9rem;
+  box-shadow: 0 0 0 0.18rem #f8fafc33;
+}
+
+.dot {
+  transition:
+    width 0.15s ease,
+    height 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .dot {

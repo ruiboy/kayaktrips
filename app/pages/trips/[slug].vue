@@ -286,13 +286,7 @@ async function deletePhoto(photo: PhotoRow) {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <BreadCrumbs
-        :trail="[
-          { label: 'Home', to: '/' },
-          { label: 'Trips', to: '/trips' },
-          { label: data.trip.title },
-        ]"
-      />
+      <SiteNav />
       <AccountControl />
     </div>
 

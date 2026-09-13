@@ -38,7 +38,7 @@ function formatDate(iso: string) {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <BreadCrumbs :trail="[{ label: 'Home', to: '/' }, { label: 'Photos' }]" />
+      <SiteNav />
       <div class="topbar-right">
         <NuxtLink v-if="isEditor" class="add" to="/upload">Add a photo</NuxtLink>
         <AccountControl />

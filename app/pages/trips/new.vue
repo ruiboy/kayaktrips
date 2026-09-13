@@ -74,7 +74,7 @@ async function createTrip() {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <BreadCrumbs :trail="[{ label: 'Home', to: '/' }, { label: 'Trips', to: '/trips' }, { label: 'New trip' }]" />
+      <SiteNav />
       <AccountControl />
     </div>
     <h1>New trip</h1>

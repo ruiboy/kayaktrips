@@ -318,9 +318,12 @@ still a personal project at personal scale — don't build ahead of what's asked
   the pencil runs inline after the caption text, so a wrapped caption keeps it
   with the last word rather than leaving a row of pencils at ragged heights —
   and it stays off the image, which is the thing worth looking at.
-- **`BreadCrumbs` on every page below the landing.** The trail is the site's
-  shape, not your history: a trip always reads Home / Trips / <title> however
-  you arrived.
+- **`SiteNav` on every page below the landing.** Breadcrumbs came first and
+  were wrong for a site two levels deep — "Home / Trips" spent a line saying
+  what the heading already said. A nav moves you sideways instead, from a trip
+  straight to the photos. The wordmark is the way home, so no crumb has to be,
+  and the current section is underlined rather than only coloured, since on
+  this palette a colour change alone reads as hover.
 - **Map colours come from `app/utils/mapColours.ts`**, not from TripMap.vue —
   `<script setup>` cannot carry ES exports, only type exports, so a palette
   shared with the page that lists the trips has to live outside the component.

@@ -43,7 +43,7 @@ function badgeUrl(trip: TripRow) {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <BreadCrumbs :trail="[{ label: 'Home', to: '/' }, { label: 'Trips' }]" />
+      <SiteNav />
       <div class="topbar-right">
         <NuxtLink v-if="isEditor" class="new" to="/trips/new">New trip</NuxtLink>
         <AccountControl />
