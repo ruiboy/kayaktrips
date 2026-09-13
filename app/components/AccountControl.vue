@@ -10,10 +10,14 @@
 // it and the login would silently not happen.
 const { email, isEditor } = useEditor()
 
-// Signing in means visiting a path Access protects and letting it challenge —
-// there is no login page of our own any more. /upload is that path, and Access
-// returns you to it once the code is accepted.
-const SIGN_IN = '/upload'
+// Signing in means visiting a path Access protects and letting it challenge.
+// /signin exists only to be that path: it has nothing on it, and it sends you
+// back where you were. Pointing this at /upload also worked, but landing on an
+// upload form when you asked to sign in reads as a wrong turn.
+const route = useRoute()
+const signInHref = computed(
+  () => `/signin?next=${encodeURIComponent(route.fullPath)}`,
+)
 
 // Access owns the session cookie, so only Access can clear it.
 const SIGN_OUT = '/cdn-cgi/access/logout'
@@ -26,7 +30,7 @@ const SIGN_OUT = '/cdn-cgi/access/logout'
       <a class="link" :href="SIGN_OUT">Sign out</a>
     </template>
 
-    <a v-else class="link" :href="SIGN_IN">Sign in</a>
+    <a v-else class="link" :href="signInHref">Sign in</a>
   </div>
 </template>
 
