@@ -76,6 +76,11 @@ export default defineEventHandler(async (event) => {
     throw error
   }
 
+  // After the row, so a failed transform can never orphan an upload. Returns
+  // null rather than throwing — /img falls back to the original, so a missing
+  // thumbnail is slow, not broken.
+  await makeThumb(event, storage_path)
+
   // Non-fatal on purpose: the photo is filed either way, and a failed badge
   // update shouldn't read as a failed upload.
   let badgeError: string | null = null

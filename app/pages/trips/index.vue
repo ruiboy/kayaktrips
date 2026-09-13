@@ -36,7 +36,7 @@ function route(trip: TripRow) {
 // Derived at render time, like everywhere else — rows hold paths, not URLs.
 function badgeUrl(trip: TripRow) {
   if (!trip.badge) return ''
-  return photoUrl(trip.badge.storage_path)
+  return thumbUrl(trip.badge.storage_path)
 }
 </script>
 

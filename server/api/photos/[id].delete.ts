@@ -18,6 +18,7 @@ export default defineEventHandler(async (event) => {
   )
   if (!row) throw createError({ statusCode: 404, statusMessage: 'No such photo' })
 
-  await photoBucket(event).delete(row.storage_path)
+  // Both objects, or the thumbnail outlives the photo it was made from.
+  await photoBucket(event).delete([row.storage_path, thumbKey(row.storage_path)])
   return { id }
 })

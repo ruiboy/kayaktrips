@@ -70,6 +70,12 @@ function publicUrl(path: string) {
   return photoUrl(path)
 }
 
+// Everything on this page draws small — the hero badge, the photo grid, the
+// badge picker. Only the click-through wants the original.
+function thumb(path: string) {
+  return thumbUrl(path)
+}
+
 // Held locally so the tick moves the moment the update lands, rather than
 // waiting on a refetch of the whole page.
 const badgePhotoId = ref(data.value?.trip.badge_photo_id ?? null)
@@ -265,7 +271,7 @@ async function deletePhoto(photo: PhotoRow) {
         <img
           v-if="badgePhoto"
           class="badge"
-          :src="publicUrl(badgePhoto.storage_path)"
+          :src="thumb(badgePhoto.storage_path)"
           :alt="badgePhoto.caption ?? ''"
         />
 
@@ -339,7 +345,7 @@ async function deletePhoto(photo: PhotoRow) {
             <li v-for="photo in data.photos" :key="photo.id">
               <a :href="publicUrl(photo.storage_path)" target="_blank" rel="noopener">
                 <img
-                  :src="publicUrl(photo.storage_path)"
+                  :src="thumb(photo.storage_path)"
                   :alt="photo.caption ?? ''"
                   loading="lazy"
                 />
@@ -398,7 +404,7 @@ async function deletePhoto(photo: PhotoRow) {
               @click="setBadge(photo.id)"
             >
               <img
-                :src="publicUrl(photo.storage_path)"
+                :src="thumb(photo.storage_path)"
                 :alt="photo.caption ?? ''"
                 loading="lazy"
               />

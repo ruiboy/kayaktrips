@@ -57,7 +57,7 @@ function formatDate(iso: string) {
       <li v-for="photo in photos" :key="photo.id">
         <a :href="photoUrl(photo.storage_path)" target="_blank" rel="noopener">
           <img
-            :src="photoUrl(photo.storage_path)"
+            :src="thumbUrl(photo.storage_path)"
             :alt="photo.caption ?? ''"
             loading="lazy"
           />

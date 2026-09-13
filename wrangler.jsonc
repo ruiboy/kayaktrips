@@ -17,6 +17,10 @@
       "database_id": "5fd4f60f-c024-49b4-8cf8-20950fde060f"
     }
   ],
+  "images": {
+    "binding": "IMAGES"
+  },
+
   "r2_buckets": [
     {
       "binding": "PHOTOS",
