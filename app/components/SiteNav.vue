@@ -22,7 +22,12 @@ function isCurrent(to: string) {
 
 <template>
   <nav class="site-nav" aria-label="Sections">
-    <NuxtLink class="mark" to="/">Kayak Trips</NuxtLink>
+    <!-- The badge, not the words: it is the thing the app is already known by,
+         and it survives a narrow screen where a two-word mark would wrap or
+         have to be dropped. -->
+    <NuxtLink class="mark" to="/" aria-label="Kayak Trips — home">
+      <img src="/mkt-crew.png" alt="" width="960" height="948" />
+    </NuxtLink>
 
     <ul>
       <li v-for="section in SECTIONS" :key="section.to">
@@ -41,22 +46,33 @@ function isCurrent(to: string) {
 <style scoped>
 .site-nav {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 1.25rem;
   min-width: 0;
   flex-wrap: wrap;
 }
 
 .mark {
-  color: #e2e8f0;
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 0.95rem;
-  white-space: nowrap;
+  flex: 0 0 auto;
+  display: block;
+  line-height: 0;
+  border-radius: 50%;
 }
 
-.mark:hover {
-  color: #38bdf8;
+.mark img {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  display: block;
+}
+
+.mark:hover img {
+  filter: brightness(1.15);
+}
+
+.mark:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
 }
 
 ul {

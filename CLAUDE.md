@@ -321,9 +321,12 @@ still a personal project at personal scale — don't build ahead of what's asked
 - **`SiteNav` on every page below the landing.** Breadcrumbs came first and
   were wrong for a site two levels deep — "Home / Trips" spent a line saying
   what the heading already said. A nav moves you sideways instead, from a trip
-  straight to the photos. The wordmark is the way home, so no crumb has to be,
-  and the current section is underlined rather than only coloured, since on
-  this palette a colour change alone reads as hover.
+  straight to the photos. The badge is the way home, so no crumb has to be —
+  the artwork survives a narrow screen where a two-word mark would wrap. The
+  current section is underlined rather than only coloured, since on this
+  palette a colour change alone reads as hover. The signed-in address is not
+  displayed: it told you what you already knew and pushed the nav onto a third
+  row on a phone.
 - **Map colours come from `app/utils/mapColours.ts`**, not from TripMap.vue —
   `<script setup>` cannot carry ES exports, only type exports, so a palette
   shared with the page that lists the trips has to live outside the component.

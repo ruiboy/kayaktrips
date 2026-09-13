@@ -25,10 +25,12 @@ const SIGN_OUT = '/cdn-cgi/access/logout'
 
 <template>
   <div class="account">
-    <template v-if="isEditor">
-      <span class="who">{{ email }}</span>
-      <a class="link" :href="SIGN_OUT">Sign out</a>
-    </template>
+    <!-- The address is not shown. It said nothing you didn't know — you are
+         the one signed in — and on a narrow screen it pushed the nav onto a
+         third row. The title still carries it for the rare "which account?". -->
+    <a v-if="isEditor" class="link" :href="SIGN_OUT" :title="`Signed in as ${email}`">
+      Sign out
+    </a>
 
     <a v-else class="link" :href="signInHref">Sign in</a>
   </div>
@@ -43,13 +45,6 @@ const SIGN_OUT = '/cdn-cgi/access/logout'
   font-size: 0.85rem;
 }
 
-.who {
-  color: #94a3b8;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 11rem;
-}
 
 .link {
   flex: 0 0 auto;
