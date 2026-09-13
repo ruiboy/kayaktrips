@@ -136,8 +136,13 @@ Design intent worth preserving:
   orphaned object, which nothing lists. The client sends an id, never a path,
   so only a row can name a file for deletion.
 - **`trip_id` is nullable and means "not filed under a trip".** Rows that
-  predate trips stay NULL. There is still no update route for photos, so filing
-  happens at upload time only — the picker on `/upload` sets it on insert.
+  predate trips stay NULL, and filing still happens at upload time only — the
+  picker on `/upload` sets it on insert.
+- **`PATCH /api/photos/<id>` edits the caption and nothing else.** Its
+  allowlist is one field long deliberately: fixing a typo is worth allowing,
+  re-filing a photo is not, since `trip_id` is what the gallery and the trip
+  page split on. An emptied caption stores NULL rather than `''`, because the
+  templates test for null to decide whether to render the line.
 
 Orphans are no longer possible: the upload route deletes the object it just
 wrote if the row insert fails. Under Supabase the two sides were different
@@ -179,6 +184,13 @@ Design intent worth preserving:
   fields it will write, so a request cannot reach `slug` or `created_by`.
 - Nothing constrains the badge to a photo *of* that trip; only the UI does.
   A composite FK or trigger would enforce it, and isn't worth it yet.
+- **The badge is chosen inside the trip editor and saved with the trip**, not
+  written through on click, so abandoning an edit leaves it as it was.
+  `BadgePickerDialog` nests inside the editor the way `MapPickerDialog` does —
+  native `<dialog>` uses the top layer, so stacking is fine.
+- **`DELETE /api/trips/<slug>`** exists and is reached from the trip editor
+  behind typing the trip's title. Campsites cascade with it; photos survive
+  with `trip_id` NULL and their storage objects are untouched.
 
 ### `campsites`
 
@@ -300,3 +312,15 @@ still a personal project at personal scale — don't build ahead of what's asked
 - No component library or CSS framework so far — plain scoped CSS in each
   page, dark palette (`#0f172a` background, `#38bdf8` accent).
 - Pages live in `app/pages/`.
+- **Editing is a pencil, deleting lives in the dialog it opens.** `EditButton`
+  is the one affordance for "change this"; no Delete sits on a page where a
+  reader could reach it. This was arrived at by trying it three ways: on photos
+  the pencil runs inline after the caption text, so a wrapped caption keeps it
+  with the last word rather than leaving a row of pencils at ragged heights —
+  and it stays off the image, which is the thing worth looking at.
+- **`BreadCrumbs` on every page below the landing.** The trail is the site's
+  shape, not your history: a trip always reads Home / Trips / <title> however
+  you arrived.
+- **Map colours come from `app/utils/mapColours.ts`**, not from TripMap.vue —
+  `<script setup>` cannot carry ES exports, only type exports, so a palette
+  shared with the page that lists the trips has to live outside the component.

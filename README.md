@@ -9,8 +9,10 @@ trips.
 Live at **https://kayaktrips.vixim.workers.dev** (installable — "Add to Home
 Screen").
 
-Trip records, campsites with ratings, photos filed against trips, and a map are
-all working. Reading is open to everyone; editing needs a signed-in editor.
+Trip records, campsites with ratings, photos filed against trips, and a map of
+every trip at once are all working. Reading is open to everyone; editing needs
+a signed-in editor, and is always reached through a small pencil — deleting
+lives inside the dialog that pencil opens, never on the page itself.
 
 Everything runs on Cloudflare. It moved there from Vercel + Supabase in
 September 2026, because the Supabase free tier caps at 1 GB of storage and
