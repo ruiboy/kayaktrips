@@ -1,8 +1,18 @@
 <script setup lang="ts">
 import type { MapPoint } from '~/components/TripMap.vue'
 
+export type TripPhoto = {
+  id: string
+  storage_path: string
+  caption: string | null
+}
+
 export type EditableTrip = {
   id: string
+  // The trip is addressed by slug in the API, so the editor needs it even
+  // though nothing here can change it.
+  slug: string
+  badge_photo_id: string | null
   title: string
   start_date: string
   end_date: string
@@ -15,12 +25,47 @@ export type EditableTrip = {
   end_lon: number | null
 }
 
-const props = defineProps<{ trip: EditableTrip }>()
+const props = defineProps<{
+  trip: EditableTrip
+  // The trip's own photos, to pick a badge from. The picker doesn't render
+  // when a trip has none.
+  photos: TripPhoto[]
+}>()
 const emit = defineEmits<{ saved: [EditableTrip] }>()
 
-const supabase = useSupabaseClient()
 
 const dialog = ref<HTMLDialogElement | null>(null)
+
+// Deleting a trip is the one act here that takes other rows with it, so it
+// hides until asked for and then wants the title typed. Campsites cascade;
+// photos survive with a null trip_id, which is what the copy says.
+const armDelete = ref(false)
+const deleteConfirm = ref('')
+const deleteError = ref('')
+const deleting = ref(false)
+
+async function removeTrip() {
+  if (deleteConfirm.value.trim() !== props.trip.title || deleting.value) return
+
+  deleting.value = true
+  deleteError.value = ''
+
+  try {
+    await $fetch(`/api/trips/${props.trip.slug}`, { method: 'DELETE' })
+  } catch (error) {
+    deleting.value = false
+    deleteError.value =
+      (error as { statusCode?: number })?.statusCode === 401
+        ? 'That was refused. Are you still signed in?'
+        : ((error as { statusMessage?: string })?.statusMessage ??
+          'That trip was not deleted.')
+    return
+  }
+
+  // The page this dialog sits on is about to stop existing, so leave rather
+  // than close and re-render a trip that has gone.
+  await navigateTo('/trips')
+}
 const saving = ref(false)
 const formError = ref('')
 
@@ -35,14 +80,24 @@ const draft = reactive({
   start_lon: '',
   end_lat: '',
   end_lon: '',
+  badge_photo_id: null as string | null,
 })
 
 const asText = (value: number | null) => (value === null ? '' : String(value))
+
+const badgePicker = ref<{ show: () => void } | null>(null)
+
+// The chosen photo, held in the draft rather than written straight through —
+// backing out of the edit leaves the trip's badge as it was.
+const chosenBadge = computed(
+  () => props.photos.find((photo) => photo.id === draft.badge_photo_id) ?? null,
+)
 
 function show() {
   formError.value = ''
   target.value = 'start'
   Object.assign(draft, {
+    badge_photo_id: props.trip.badge_photo_id,
     title: props.trip.title,
     start_date: props.trip.start_date,
     end_date: props.trip.end_date,
@@ -175,28 +230,32 @@ async function save() {
     start_lon: numberOrNull(draft.start_lon),
     end_lat: numberOrNull(draft.end_lat),
     end_lon: numberOrNull(draft.end_lon),
+    // Chosen here rather than from the page: the badge is a property of the
+    // trip, so it saves with the rest of it instead of writing through on click.
+    badge_photo_id: draft.badge_photo_id,
   }
 
-  // `.select()` because RLS refuses by matching no rows rather than erroring.
-  const { data: saved, error: saveError } = await supabase
-    .from('trips')
-    .update(fields)
-    .eq('id', props.trip.id)
-    .select(
-      'id, title, start_date, end_date, start_place, end_place, notes,' +
-        ' start_lat, start_lon, end_lat, end_lon',
-    )
-
-  saving.value = false
-
-  if (saveError) {
-    formError.value = saveError.message
+  // The route returns the saved row, which is still the only proof the write
+  // happened — and a 401 from it is the new shape of "you are not signed in".
+  let row: EditableTrip | null = null
+  try {
+    row = await $fetch<EditableTrip>(`/api/trips/${props.trip.slug}`, {
+      method: 'PATCH',
+      body: fields,
+    })
+  } catch (error) {
+    saving.value = false
+    formError.value =
+      (error as { statusCode?: number })?.statusCode === 401
+        ? 'That was refused. Are you still signed in?'
+        : ((error as { statusMessage?: string })?.statusMessage ?? 'That did not save.')
     return
   }
 
-  const row = (saved as EditableTrip[] | null)?.[0]
+  saving.value = false
+
   if (!row) {
-    formError.value = 'The database refused that. Are you still signed in?'
+    formError.value = 'That was refused. Are you still signed in?'
     return
   }
 
@@ -286,6 +345,44 @@ async function save() {
         </div>
       </fieldset>
 
+      <fieldset v-if="photos.length" class="badge-field">
+        <legend>Badge</legend>
+
+        <!-- A button and the current choice, not the whole gallery: rendering
+             every photo inline buried the fields below it and duplicated the
+             grid already on the page. -->
+        <div class="badge-row">
+          <img
+            v-if="chosenBadge"
+            class="badge-thumb"
+            :src="thumbUrl(chosenBadge.storage_path)"
+            :alt="chosenBadge.caption ?? ''"
+          />
+          <p v-else class="hint">No badge chosen.</p>
+
+          <div class="badge-actions">
+            <button type="button" class="ghost" @click="badgePicker?.show()">
+              {{ chosenBadge ? 'Change badge' : 'Choose badge' }}
+            </button>
+            <button
+              v-if="chosenBadge"
+              type="button"
+              class="linky"
+              @click="draft.badge_photo_id = null"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      </fieldset>
+
+      <BadgePickerDialog
+        ref="badgePicker"
+        :photos="photos"
+        :selected-id="draft.badge_photo_id"
+        @choose="draft.badge_photo_id = $event"
+      />
+
       <MapPickerDialog
         ref="mapPicker"
         :points="draftPoints"
@@ -295,9 +392,39 @@ async function save() {
 
       <p v-if="formError" class="error">{{ formError }}</p>
 
-      <button type="submit" class="primary" :disabled="saving">
-        {{ saving ? 'Saving…' : 'Save changes' }}
-      </button>
+      <div class="form-foot">
+        <button type="button" class="danger-link" @click="armDelete = !armDelete">
+          {{ armDelete ? 'Never mind' : 'Delete this trip' }}
+        </button>
+
+        <button type="submit" class="primary" :disabled="saving">
+          {{ saving ? 'Saving…' : 'Save changes' }}
+        </button>
+      </div>
+
+      <!-- Two steps, because this is the only action here that destroys
+           anything the owner can't retype. Typing the title is the confirmation:
+           a trip is deleted rarely enough that the friction costs nothing, and
+           it makes deleting the wrong trip from a list of similar names hard. -->
+      <div v-if="armDelete" class="danger">
+        <p class="danger-what">
+          Deletes <strong>{{ props.trip.title }}</strong> and its campsites.
+          Photos filed under it survive, unfiled, in the gallery.
+        </p>
+        <label>
+          Type the trip's name to confirm
+          <input v-model="deleteConfirm" type="text" :placeholder="props.trip.title" />
+        </label>
+        <p v-if="deleteError" class="error">{{ deleteError }}</p>
+        <button
+          type="button"
+          class="delete"
+          :disabled="deleteConfirm.trim() !== props.trip.title || deleting"
+          @click="removeTrip"
+        >
+          {{ deleting ? 'Deleting…' : 'Delete permanently' }}
+        </button>
+      </div>
     </form>
   </dialog>
 </template>
@@ -457,6 +584,123 @@ textarea {
 .ghost.small {
   font-size: 0.8rem;
   padding: 0.25rem 0.6rem;
+}
+
+.badge-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.badge-thumb {
+  width: 4.5rem;
+  height: 3.4rem;
+  object-fit: cover;
+  border-radius: 0.35rem;
+  border: 1px solid #334155;
+}
+
+.badge-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.linky {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #64748b;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.linky:hover {
+  color: #38bdf8;
+}
+
+.form-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Quiet until wanted: a link rather than a button, so it doesn't compete with
+   Save for attention. */
+.danger-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #64748b;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.danger-link:hover {
+  color: #fb7185;
+}
+
+.danger {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid #7f1d1d;
+  border-radius: 0.5rem;
+  background: #450a0a33;
+}
+
+.danger-what {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #fca5a5;
+}
+
+.danger label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.danger input {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 0.35rem;
+  color: #e2e8f0;
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+}
+
+.delete {
+  align-self: flex-start;
+  background: none;
+  border: 1px solid #7f1d1d;
+  color: #fb7185;
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.8rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.delete:hover:not(:disabled) {
+  background: #7f1d1d;
+  color: #fff;
+}
+
+.delete:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .primary {

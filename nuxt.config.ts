@@ -3,7 +3,24 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
-  modules: ['@nuxtjs/supabase', '@vite-pwa/nuxt'],
+  modules: ['@vite-pwa/nuxt', 'nitro-cloudflare-dev'],
+
+  // Build a Workers module bundle rather than a Node server. The D1 and R2
+  // bindings are declared in wrangler.jsonc; `nitro-cloudflare-dev` hands the
+  // same bindings to `nuxt dev`, so local and deployed code take one path.
+  nitro: {
+    preset: 'cloudflare_module',
+  },
+
+  // Server-only: these never reach the browser. `accessAud` is the Access
+  // application's AUD tag — without it and the team domain, every write route
+  // refuses, which is the intended behaviour for an unconfigured deployment.
+  // `devEditorEmail` only has effect in a dev build; see server/utils/access.ts.
+  runtimeConfig: {
+    accessTeamDomain: '',
+    accessAud: '',
+    devEditorEmail: '',
+  },
 
   app: {
     head: {
@@ -13,6 +30,14 @@ export default defineNuxtConfig({
       link: [
         { rel: 'manifest', href: '/manifest.webmanifest' },
         { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+        // Not redundant with the manifest. Firefox on Android makes a plain
+        // shortcut rather than installing a PWA, and takes its icon from these
+        // links rather than from the manifest — with only favicon.ico to go on
+        // (64px) it gave up and drew a letter K. Chrome reads the manifest and
+        // never had the problem, which is why this only showed up on a phone.
+        { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/icon-192.png' },
+        { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/icon-512.png' },
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
       ],
       meta: [
         { name: 'theme-color', content: '#0f172a' },
@@ -24,18 +49,6 @@ export default defineNuxtConfig({
           content: 'black-translucent',
         },
       ],
-    },
-  },
-
-  supabase: {
-    // Only `include` paths require a session — everything else stays public,
-    // which is the whole point: public read, gated editing.
-    redirect: true,
-    redirectOptions: {
-      login: '/login',
-      callback: '/confirm',
-      include: ['/upload', '/trips/new'],
-      saveRedirectToCookie: true,
     },
   },
 

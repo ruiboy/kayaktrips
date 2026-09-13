@@ -26,39 +26,28 @@ type PhotoRow = {
 }
 
 const route = useRoute()
-const supabase = useSupabaseClient()
-const user = useSupabaseUser()
+const { isEditor } = useEditor()
 const slug = computed(() => String(route.params.slug))
 
+// `useRequestFetch`, not bare `$fetch`: on Workers an internal fetch starts a
+// fresh event without `context.cloudflare`, so the route would find no D1
+// binding and fail server-side. This one carries the current event's context
+// (and its cookies) through.
+const requestFetch = useRequestFetch()
 const { data, error } = await useAsyncData(
   () => `trip:${slug.value}`,
   async () => {
-    const { data: trip, error: tripError } = await supabase
-      .from('trips')
-      .select(
-        'id, slug, title, start_date, end_date, start_place, end_place, notes,' +
-          ' badge_photo_id, start_lat, start_lon, end_lat, end_lon',
+    try {
+      return await requestFetch<{ trip: TripRow; photos: PhotoRow[] }>(
+        `/api/trips/${slug.value}`,
       )
-      .eq('slug', slug.value)
-      .maybeSingle()
-
-    if (tripError) throw tripError
-    // Returned rather than thrown: `useAsyncData` catches anything the handler
-    // throws into `error`, which would render a soft failure at HTTP 200. The
-    // 404 is raised outside, where it can reach the response.
-    if (!trip) return null
-
-    // Filed photos only. Anything uploaded before trips existed has a null
-    // trip_id and lives in the general gallery until it's uploaded again.
-    const { data: photos, error: photosError } = await supabase
-      .from('photos')
-      .select('id, storage_path, caption, created_at')
-      .eq('trip_id', (trip as TripRow).id)
-      .order('created_at', { ascending: true })
-
-    if (photosError) throw photosError
-
-    return { trip: trip as TripRow, photos: photos as PhotoRow[] }
+    } catch (fetchError) {
+      // Returned rather than rethrown on a 404: `useAsyncData` catches anything
+      // the handler throws into `error`, which would render a soft failure at
+      // HTTP 200. The 404 is raised outside, where it can reach the response.
+      if ((fetchError as { statusCode?: number })?.statusCode === 404) return null
+      throw fetchError
+    }
   },
   { watch: [slug] },
 )
@@ -78,13 +67,18 @@ useHead(() => ({
 // Built at render time rather than stored, so the bucket or project can move
 // without rewriting every row.
 function publicUrl(path: string) {
-  return supabase.storage.from('photos').getPublicUrl(path).data.publicUrl
+  return photoUrl(path)
+}
+
+// Everything on this page draws small — the hero badge, the photo grid, the
+// badge strip. Only the click-through wants the original.
+function thumb(path: string) {
+  return thumbUrl(path)
 }
 
 // Held locally so the tick moves the moment the update lands, rather than
 // waiting on a refetch of the whole page.
 const badgePhotoId = ref(data.value?.trip.badge_photo_id ?? null)
-const badgeError = ref('')
 
 // Found among the trip's own photos rather than fetched again, so choosing a
 // new badge updates the header immediately. Nothing in the database stops a
@@ -94,45 +88,22 @@ const badgePhoto = computed(
   () => data.value?.photos.find((photo) => photo.id === badgePhotoId.value) ?? null,
 )
 
-// A native <dialog> rather than a hand-rolled overlay: Escape to dismiss and
-// the focus trap come with it.
-const picker = ref<HTMLDialogElement | null>(null)
+// The per-photo dialog. Opened by the pencil on a tile; holds the badge
+// control and Delete, so neither sits on the page where a reader's thumb is.
+const photoDialog = ref<{ show: (photo: PhotoRow) => void } | null>(null)
 
-function openPicker() {
-  badgeError.value = ''
-  picker.value?.showModal()
+// Folded back in rather than refetched, so the tile and the header follow the
+// dialog closing.
+function onPhotoSaved(saved: { id: string; caption: string | null }) {
+  const row = data.value?.photos.find((photo) => photo.id === saved.id)
+  if (row) row.caption = saved.caption
 }
 
-// <dialog> treats a backdrop click as a click on the dialog itself, so this
-// only fires outside the panel.
-function onPickerClick(event: MouseEvent) {
-  if (event.target === picker.value) picker.value?.close()
-}
-
-async function setBadge(photoId: string) {
+function onPhotoDeleted(id: string) {
   if (!data.value) return
-
-  picker.value?.close()
-  if (photoId === badgePhotoId.value) return
-
-  const previous = badgePhotoId.value
-  badgePhotoId.value = photoId
-  badgeError.value = ''
-
-  // `.select()` for the same reason as the delete below: an update RLS won't
-  // allow matches no rows rather than erroring, so without the returned row a
-  // refusal is indistinguishable from success.
-  const { data: updated, error: updateError } = await supabase
-    .from('trips')
-    .update({ badge_photo_id: photoId })
-    .eq('id', data.value.trip.id)
-    .select('id')
-
-  if (updateError || !updated?.length) {
-    badgePhotoId.value = previous
-    badgeError.value =
-      updateError?.message ?? 'the database refused the change. Are you still signed in?'
-  }
+  data.value.photos = data.value.photos.filter((photo) => photo.id !== id)
+  // The FK is `on delete set null`, so the trip has already lost its badge.
+  if (badgePhotoId.value === id) badgePhotoId.value = null
 }
 
 // ---- Map -------------------------------------------------------------------
@@ -207,6 +178,7 @@ const editor = ref<{ show: () => void } | null>(null)
 // returned row back into the page so the header, the map and the dates update
 // without a refetch.
 function onTripSaved(row: {
+  badge_photo_id: string | null
   title: string
   start_date: string
   end_date: string
@@ -220,6 +192,8 @@ function onTripSaved(row: {
 }) {
   if (!data.value) return
   Object.assign(data.value.trip, row)
+  // The badge is edited with the trip now, so the header follows the save.
+  badgePhotoId.value = row.badge_photo_id
   startPoint.value =
     row.start_lat != null && row.start_lon != null
       ? [row.start_lat, row.start_lon]
@@ -228,65 +202,12 @@ function onTripSaved(row: {
     row.end_lat != null && row.end_lon != null ? [row.end_lat, row.end_lon] : null
 }
 
-// ---- Photos ----------------------------------------------------------------
-
-const deleting = ref<string | null>(null)
-const deleteError = ref('')
-
-async function deletePhoto(photo: PhotoRow) {
-  if (!data.value || deleting.value) return
-
-  const label = photo.caption ? `“${photo.caption}”` : 'this photo'
-  if (!confirm(`Delete ${label}? This can't be undone.`)) return
-
-  deleting.value = photo.id
-  deleteError.value = ''
-
-  // Row first, file second. The other order can leave a row pointing at a file
-  // that no longer exists — a broken tile in the gallery. This order can leave
-  // an orphaned file, which nothing lists and nothing renders.
-  //
-  // `.select()` matters: RLS doesn't refuse a delete, it just matches no rows,
-  // so a blocked delete returns 204 with no error and looks identical to a
-  // successful one. The returned rows are the only evidence anything happened.
-  const { data: removed, error: rowError } = await supabase
-    .from('photos')
-    .delete()
-    .eq('id', photo.id)
-    .select('id')
-
-  if (rowError) {
-    deleting.value = null
-    deleteError.value = rowError.message
-    return
-  }
-
-  if (!removed?.length) {
-    deleting.value = null
-    deleteError.value =
-      "That photo wasn't deleted — the database refused it. There's no delete policy on `photos` for your account."
-    return
-  }
-
-  const { error: fileError } = await supabase.storage
-    .from('photos')
-    .remove([photo.storage_path])
-
-  data.value.photos = data.value.photos.filter((row) => row.id !== photo.id)
-  // The FK is `on delete set null`, so the trip has already lost its badge.
-  if (badgePhotoId.value === photo.id) badgePhotoId.value = null
-  deleting.value = null
-
-  if (fileError) {
-    deleteError.value = `Removed from the gallery, but the file is still in the bucket: ${fileError.message}`
-  }
-}
 </script>
 
 <template>
   <main class="wrap">
     <div class="topbar">
-      <NuxtLink class="back" to="/trips">&larr; All trips</NuxtLink>
+      <SiteNav />
       <AccountControl />
     </div>
 
@@ -297,7 +218,7 @@ async function deletePhoto(photo: PhotoRow) {
         <img
           v-if="badgePhoto"
           class="badge"
-          :src="publicUrl(badgePhoto.storage_path)"
+          :src="thumb(badgePhoto.storage_path)"
           :alt="badgePhoto.caption ?? ''"
         />
 
@@ -317,21 +238,24 @@ async function deletePhoto(photo: PhotoRow) {
           <!-- A plain anchor, not a NuxtLink: the router would treat this as a
                navigation, and the browser's own hash jump is what's wanted. -->
           <div class="head-actions">
-            <a v-if="user || mapPoints.length" class="to-map" href="#map">
+            <a v-if="isEditor || mapPoints.length" class="to-map" href="#map">
               {{ mapPoints.length ? 'See the map' : 'Place it on the map' }}
               &darr;
             </a>
-            <button v-if="user" class="ghost" @click="editor?.show()">
-              Edit trip
-            </button>
+            <EditButton
+              v-if="isEditor"
+              :label="`Edit ${data.trip.title}`"
+              @click="editor?.show()"
+            />
           </div>
         </div>
       </header>
 
       <TripEditor
-        v-if="user"
+        v-if="isEditor"
         ref="editor"
         :trip="data.trip"
+        :photos="data.photos"
         @saved="onTripSaved"
       />
 
@@ -348,10 +272,7 @@ async function deletePhoto(photo: PhotoRow) {
         <section class="photos">
           <div class="photos-head">
             <h2>Photos</h2>
-            <div v-if="user" class="photo-actions">
-              <button v-if="data.photos.length" class="ghost" @click="openPicker">
-                Choose badge
-              </button>
+            <div v-if="isEditor" class="photo-actions">
               <NuxtLink class="ghost" :to="`/upload?trip=${data.trip.slug}`">
                 Add a photo
               </NuxtLink>
@@ -362,39 +283,37 @@ async function deletePhoto(photo: PhotoRow) {
             Nothing filed under this trip yet.
           </p>
 
-          <p v-if="badgeError" class="error">
-            Couldn't set the badge: {{ badgeError }}
-          </p>
-          <p v-if="deleteError" class="error">{{ deleteError }}</p>
 
           <ul v-if="data.photos.length" class="grid">
             <li v-for="photo in data.photos" :key="photo.id">
               <a :href="publicUrl(photo.storage_path)" target="_blank" rel="noopener">
                 <img
-                  :src="publicUrl(photo.storage_path)"
+                  :src="thumb(photo.storage_path)"
                   :alt="photo.caption ?? ''"
                   loading="lazy"
                 />
               </a>
-              <p v-if="photo.caption" class="caption">{{ photo.caption }}</p>
 
-              <div class="tile-foot">
-                <p v-if="photo.id === badgePhotoId" class="is-badge">★ Badge</p>
-                <button
-                  v-if="user"
-                  class="delete"
-                  :disabled="deleting === photo.id"
-                  @click="deletePhoto(photo)"
-                >
-                  {{ deleting === photo.id ? 'Deleting…' : 'Delete' }}
-                </button>
-              </div>
+              <!-- The pencil runs on from the caption text rather than sitting
+                   in a column of its own. Inline, so on a caption that wraps it
+                   follows the last word instead of hanging level with the first
+                   line and leaving a row of pencils at different heights. -->
+              <p v-if="photo.caption || isEditor" class="caption">
+                <span v-if="photo.id === badgePhotoId" class="is-badge" title="Trip badge">★</span>
+                {{ photo.caption }}
+                <EditButton
+                  v-if="isEditor"
+                  class="inline-edit"
+                  :label="`Edit ${photo.caption || 'this photo'}`"
+                  @click="photoDialog?.show(photo)"
+                />
+              </p>
             </li>
           </ul>
         </section>
       </div>
 
-      <section v-if="user || mapPoints.length" id="map" class="map-section">
+      <section v-if="isEditor || mapPoints.length" id="map" class="map-section">
         <div class="map-head">
           <h2>Map</h2>
         </div>
@@ -406,39 +325,19 @@ async function deletePhoto(photo: PhotoRow) {
           </template>
         </ClientOnly>
 
-        <p v-if="user && !mapPoints.length" class="empty">
-          Nothing placed yet. Points are set in "Edit trip" and in each
-          campsite's own form.
+        <p v-if="isEditor && !mapPoints.length" class="empty">
+          Nothing placed yet. Points are set by the pencil beside the trip's
+          title, and in each campsite's own form.
         </p>
       </section>
 
-      <dialog ref="picker" class="picker" @click="onPickerClick">
-        <div class="picker-head">
-          <h2>Choose the badge</h2>
-          <button class="ghost" @click="picker?.close()">Close</button>
-        </div>
-        <p class="picker-lede">
-          The badge is the photo that stands for this trip in the list.
-        </p>
+      <PhotoDialog
+        v-if="isEditor"
+        ref="photoDialog"
+        @saved="onPhotoSaved"
+        @deleted="onPhotoDeleted"
+      />
 
-        <ul class="picker-grid">
-          <li v-for="photo in data.photos" :key="photo.id">
-            <button
-              class="pick"
-              :class="{ current: photo.id === badgePhotoId }"
-              :aria-current="photo.id === badgePhotoId ? 'true' : undefined"
-              @click="setBadge(photo.id)"
-            >
-              <img
-                :src="publicUrl(photo.storage_path)"
-                :alt="photo.caption ?? ''"
-                loading="lazy"
-              />
-              <span>{{ photo.caption || 'Untitled' }}</span>
-            </button>
-          </li>
-        </ul>
-      </dialog>
     </template>
   </main>
 </template>
@@ -516,11 +415,6 @@ async function deletePhoto(photo: PhotoRow) {
   flex-wrap: wrap;
 }
 
-.back {
-  color: #38bdf8;
-  text-decoration: none;
-  font-size: 0.9rem;
-}
 
 .trip-head {
   display: flex;
@@ -639,25 +533,23 @@ h1 {
   background: #1e293b;
 }
 
+/* Sits in the text flow, so it trails the last word of a wrapped caption and
+   needs no reserved column. The photo stays uncluttered. */
+.inline-edit {
+  vertical-align: -0.35em;
+  margin-left: 0.15rem;
+}
+
 .caption {
   margin: 0.5rem 0 0;
   font-size: 0.9rem;
   line-height: 1.4;
-}
-
-.tile-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-top: 0.4rem;
-  min-height: 1.5rem;
+  min-width: 0;
 }
 
 .is-badge {
-  margin: 0;
-  font-size: 0.8rem;
   color: #38bdf8;
+  margin-right: 0.15rem;
 }
 
 /* Quiet until you reach for it — destructive, but not the point of the page. */
@@ -683,90 +575,5 @@ h1 {
   cursor: not-allowed;
 }
 
-.picker {
-  width: min(38rem, calc(100vw - 2rem));
-  background: #1e293b;
-  color: #e2e8f0;
-  border: 1px solid #334155;
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-}
-
-.picker::backdrop {
-  background: rgb(15 23 42 / 0.7);
-}
-
-.picker-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.picker-head h2 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.picker-lede {
-  margin: 0.5rem 0 1.25rem;
-  color: #94a3b8;
-  font-size: 0.9rem;
-}
-
-.picker-grid {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
-  gap: 1rem;
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-.pick {
-  width: 100%;
-  background: none;
-  border: none;
-  padding: 0;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Circular, because that's how the badge renders on the trips list — the
-   preview should show the crop you're actually choosing. */
-.pick img {
-  width: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: 50%;
-  display: block;
-  background: #0f172a;
-  border: 2px solid transparent;
-}
-
-.pick:hover img {
-  border-color: #38bdf8;
-}
-
-.pick.current img {
-  border-color: #38bdf8;
-}
-
-.pick span {
-  font-size: 0.8rem;
-  color: #94a3b8;
-  text-align: center;
-  overflow-wrap: anywhere;
-}
-
-.pick.current span {
-  color: #38bdf8;
-}
+/* Small and centred: it holds two actions, not a form. */
 </style>

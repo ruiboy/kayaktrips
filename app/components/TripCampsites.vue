@@ -10,8 +10,7 @@ const props = defineProps<{
   contextPoints: MapPoint[]
 }>()
 
-const supabase = useSupabaseClient()
-const user = useSupabaseUser()
+const { isEditor } = useEditor()
 
 // RATINGS, the Campsite type and the query all live in the composable now: the
 // map on the trip page needs the same rows, and sharing the keyed fetch keeps
@@ -98,6 +97,13 @@ function openNew() {
   dialog.value?.showModal()
 }
 
+// The campsite the dialog is currently editing. Delete lives in the dialog
+// now, and needs the row rather than just its id — for the name it puts in the
+// confirmation.
+const editing = computed(
+  () => (campsites.value ?? []).find((site) => site.id === editingId.value) ?? null,
+)
+
 function openEdit(site: Campsite) {
   editingId.value = site.id
   formError.value = ''
@@ -151,30 +157,30 @@ async function save() {
     ),
   }
 
-  // `.select()` on every write: RLS refuses by matching no rows rather than
-  // erroring, so the returned row is the only proof anything happened. It also
-  // carries `score` back, which is generated and can't be computed client-side
-  // without duplicating the rule.
-  const query = editingId.value
-    ? supabase.from('campsites').update(fields).eq('id', editingId.value)
-    : supabase
-        .from('campsites')
-        .insert({ ...fields, trip_id: props.tripId, created_by: user.value?.sub })
-
-  const { data: saved, error: saveError } = await query.select(CAMPSITE_COLUMNS)
+  // The route returns the saved row either way: it carries `score`, which is
+  // generated, and computing it here would duplicate the rule the database
+  // already owns. The recorder is taken from the verified token, not sent.
+  let row: Campsite
+  try {
+    row = editingId.value
+      ? await $fetch<Campsite>(`/api/campsites/${editingId.value}`, {
+          method: 'PATCH',
+          body: fields,
+        })
+      : await $fetch<Campsite>('/api/campsites', {
+          method: 'POST',
+          body: { ...fields, trip_id: props.tripId },
+        })
+  } catch (error) {
+    saving.value = false
+    formError.value =
+      (error as { statusCode?: number })?.statusCode === 401
+        ? 'That was refused. Are you still signed in?'
+        : ((error as { statusMessage?: string })?.statusMessage ?? 'That did not save.')
+    return
+  }
 
   saving.value = false
-
-  if (saveError) {
-    formError.value = saveError.message
-    return
-  }
-
-  const row = (saved as Campsite[] | null)?.[0]
-  if (!row) {
-    formError.value = "The database refused that. Are you still signed in?"
-    return
-  }
 
   const sites = campsites.value ?? []
   const existing = sites.findIndex((site) => site.id === row.id)
@@ -195,25 +201,22 @@ async function remove(site: Campsite) {
   deleting.value = site.id
   listError.value = ''
 
-  const { data: removed, error: deleteError } = await supabase
-    .from('campsites')
-    .delete()
-    .eq('id', site.id)
-    .select('id')
+  try {
+    await $fetch(`/api/campsites/${site.id}`, { method: 'DELETE' })
+  } catch (error) {
+    deleting.value = null
+    listError.value =
+      (error as { statusCode?: number })?.statusCode === 401
+        ? "That campsite wasn't deleted — are you still signed in?"
+        : ((error as { statusMessage?: string })?.statusMessage ??
+          "That campsite wasn't deleted.")
+    return
+  }
 
   deleting.value = null
-
-  if (deleteError) {
-    listError.value = deleteError.message
-    return
-  }
-
-  if (!removed?.length) {
-    listError.value = "That campsite wasn't deleted — the database refused it."
-    return
-  }
-
   campsites.value = (campsites.value ?? []).filter((row) => row.id !== site.id)
+  // Deleting happens from inside the dialog, so the dialog has to go with it.
+  dialog.value?.close()
 }
 
 function ratingText(value: number | null) {
@@ -225,7 +228,7 @@ function ratingText(value: number | null) {
   <section class="campsites">
     <div class="head">
       <h2>Campsites</h2>
-      <button v-if="user" class="ghost" @click="openNew">Add a campsite</button>
+      <button v-if="isEditor" class="ghost" @click="openNew">Add a campsite</button>
     </div>
 
     <p v-if="error" class="error">Couldn't load campsites: {{ error.message }}</p>
@@ -261,19 +264,21 @@ function ratingText(value: number | null) {
           </div>
         </dl>
 
-        <p v-if="site.lat !== null && site.lon !== null" class="coords">
-          {{ site.lat }}, {{ site.lon }}
-        </p>
-
-        <div v-if="user" class="site-actions">
-          <button class="ghost small" @click="openEdit(site)">Edit</button>
-          <button
-            class="delete"
-            :disabled="deleting === site.id"
-            @click="remove(site)"
-          >
-            {{ deleting === site.id ? 'Deleting…' : 'Delete' }}
-          </button>
+        <!-- Coordinates and the pencil share the last line, so the card ends
+             on one row rather than leaving a control adrift beneath it. The row
+             is rendered whenever either half has something to show. -->
+        <div
+          v-if="isEditor || (site.lat !== null && site.lon !== null)"
+          class="site-foot"
+        >
+          <p v-if="site.lat !== null && site.lon !== null" class="coords">
+            {{ site.lat }}, {{ site.lon }}
+          </p>
+          <EditButton
+            v-if="isEditor"
+            :label="`Edit ${site.name}`"
+            @click="openEdit(site)"
+          />
         </div>
       </li>
     </ol>
@@ -290,7 +295,7 @@ function ratingText(value: number | null) {
     <!-- Editors only: RLS would refuse the writes anyway, but there's no reason
          to ship the form to everyone who reads the page. -->
     <dialog
-      v-if="user"
+      v-if="isEditor"
       ref="dialog"
       class="editor"
       @click="onDialogClick"
@@ -363,10 +368,25 @@ function ratingText(value: number | null) {
         </fieldset>
 
         <p v-if="formError" class="error">{{ formError }}</p>
+        <p v-if="listError" class="error">{{ listError }}</p>
 
-        <button type="submit" class="primary" :disabled="saving">
-          {{ saving ? 'Saving…' : editingId ? 'Save changes' : 'Add campsite' }}
-        </button>
+        <div class="form-foot">
+          <!-- Only when editing: there is nothing to delete while adding, and
+               the button would be a trap next to Save. -->
+          <button
+            v-if="editingId"
+            type="button"
+            class="delete"
+            :disabled="deleting === editingId"
+            @click="remove(editing!)"
+          >
+            {{ deleting === editingId ? 'Deleting…' : 'Delete campsite' }}
+          </button>
+
+          <button type="submit" class="primary" :disabled="saving">
+            {{ saving ? 'Saving…' : editingId ? 'Save changes' : 'Add campsite' }}
+          </button>
+        </div>
       </form>
 
       <MapPickerDialog
@@ -570,10 +590,22 @@ function ratingText(value: number | null) {
   font-variant-numeric: tabular-nums;
 }
 
-.site-actions {
+.form-foot {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Coordinates left, pencil hard right, on the card's last line. */
+.site-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
-  margin-top: 1rem;
+  margin-top: 0.5rem;
+  min-height: 1.75rem;
 }
 
 /* Spread across the column: equal cells that fill the width and drop to fewer

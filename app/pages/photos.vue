@@ -11,32 +11,31 @@ type PhotoRow = {
   trip: { slug: string; title: string } | null
 }
 
-const supabase = useSupabaseClient()
-const user = useSupabaseUser()
+const { isEditor } = useEditor()
 
-// Public read, so this renders server-side for anonymous visitors too.
-const { data: photos, error } = await useAsyncData('photos', async () => {
-  const { data, error } = await supabase
-    .from('photos')
-    // The FK is named explicitly because `trips` and `photos` reference each
-    // other both ways — `photos.trip_id` here, `trips.badge_photo_id` back —
-    // and PostGREST can't infer which relationship an embed means.
-    .select(
-      'id, storage_path, caption, created_at,' +
-        ' trip:trips!photos_trip_id_fkey(slug, title)',
-    )
-    .order('created_at', { ascending: false })
-    .limit(60)
+const photoDialog = ref<{ show: (photo: PhotoRow) => void } | null>(null)
 
-  if (error) throw error
-  return data as PhotoRow[]
-})
-
-// Built at render time rather than stored, so the bucket or project can move
-// without rewriting every row.
-function publicUrl(path: string) {
-  return supabase.storage.from('photos').getPublicUrl(path).data.publicUrl
+// Folded back in rather than refetched, so the tile changes the moment the
+// dialog closes.
+function onSaved(saved: { id: string; caption: string | null }) {
+  const row = photos.value?.find((photo) => photo.id === saved.id)
+  if (row) row.caption = saved.caption
 }
+
+function onDeleted(id: string) {
+  if (photos.value) photos.value = photos.value.filter((photo) => photo.id !== id)
+}
+
+// Public read, so this renders server-side for anonymous visitors too. The
+// route does the join that used to be a PostgREST embed naming its FK.
+// `useRequestFetch`, not bare `$fetch`: on Workers an internal fetch starts a
+// fresh event without `context.cloudflare`, so the route would find no D1
+// binding and fail server-side. This one carries the current event's context
+// (and its cookies) through.
+const requestFetch = useRequestFetch()
+const { data: photos, error } = await useAsyncData('photos', () =>
+  requestFetch<PhotoRow[]>('/api/photos'),
+)
 
 const dateFormat = new Intl.DateTimeFormat('en-AU', {
   day: 'numeric',
@@ -52,9 +51,9 @@ function formatDate(iso: string) {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <NuxtLink class="back" to="/">&larr; Back</NuxtLink>
+      <SiteNav />
       <div class="topbar-right">
-        <NuxtLink v-if="user" class="add" to="/upload">Add a photo</NuxtLink>
+        <NuxtLink v-if="isEditor" class="add" to="/upload">Add a photo</NuxtLink>
         <AccountControl />
       </div>
     </div>
@@ -69,14 +68,26 @@ function formatDate(iso: string) {
 
     <ul v-else class="grid">
       <li v-for="photo in photos" :key="photo.id">
-        <a :href="publicUrl(photo.storage_path)" target="_blank" rel="noopener">
+        <a :href="photoUrl(photo.storage_path)" target="_blank" rel="noopener">
           <img
-            :src="publicUrl(photo.storage_path)"
+            :src="thumbUrl(photo.storage_path)"
             :alt="photo.caption ?? ''"
             loading="lazy"
           />
         </a>
-        <p v-if="photo.caption" class="caption">{{ photo.caption }}</p>
+        <!-- Same shape as the trip page: the pencil runs on from the caption
+             text so it keeps to the last line of a wrapped one. An unfiled
+             photo has no trip page, so this is the only place it can be
+             edited at all. -->
+        <p v-if="photo.caption || isEditor" class="caption">
+          {{ photo.caption }}
+          <EditButton
+            v-if="isEditor"
+            class="inline-edit"
+            :label="`Edit ${photo.caption || 'this photo'}`"
+            @click="photoDialog?.show(photo)"
+          />
+        </p>
 
         <NuxtLink v-if="photo.trip" class="trip" :to="`/trips/${photo.trip.slug}`">
           {{ photo.trip.title }}
@@ -86,6 +97,13 @@ function formatDate(iso: string) {
         <time :datetime="photo.created_at">{{ formatDate(photo.created_at) }}</time>
       </li>
     </ul>
+
+    <PhotoDialog
+      v-if="isEditor"
+      ref="photoDialog"
+      @saved="onSaved"
+      @deleted="onDeleted"
+    />
   </main>
 </template>
 
@@ -111,11 +129,6 @@ function formatDate(iso: string) {
   min-width: 0;
 }
 
-.back {
-  color: #38bdf8;
-  text-decoration: none;
-  font-size: 0.9rem;
-}
 
 .add {
   color: #38bdf8;
@@ -162,6 +175,13 @@ h1 {
   border-radius: 0.5rem;
   display: block;
   background: #1e293b;
+}
+
+/* Sits in the text flow, so it trails the last word of a wrapped caption
+   rather than needing a column of its own. */
+.inline-edit {
+  vertical-align: -0.35em;
+  margin-left: 0.15rem;
 }
 
 .caption {

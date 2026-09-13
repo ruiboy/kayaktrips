@@ -1,0 +1,42 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kayaktrips",
+  "main": "./.output/server/index.mjs",
+  "compatibility_date": "2025-07-15",
+  // Nuxt's server bundle pulls in Node builtins; without this the Worker
+  // fails to boot rather than failing at the call site.
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./.output/public/",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kayaktrips",
+      "database_id": "5fd4f60f-c024-49b4-8cf8-20950fde060f"
+    }
+  ],
+  "images": {
+    "binding": "IMAGES"
+  },
+
+  "r2_buckets": [
+    {
+      "binding": "PHOTOS",
+      "bucket_name": "kayaktrips-photos"
+    }
+  ],
+  // Nitro maps NUXT_-prefixed vars onto runtimeConfig. Neither is a secret —
+  // the team domain is in every login URL and the AUD is a public identifier —
+  // but without both, server/utils/access.ts refuses every write, which is the
+  // right behaviour for a half-configured deployment.
+  "vars": {
+    "NUXT_ACCESS_TEAM_DOMAIN": "vixim.cloudflareaccess.com",
+    "NUXT_ACCESS_AUD": "9f1fca3e90666d8052b243af7bb23ad46090fe44a5f2cca4fb3fce269760281c"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}

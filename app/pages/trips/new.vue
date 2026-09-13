@@ -3,8 +3,7 @@ useHead({
   title: 'New trip — Kayak Trips',
 })
 
-const supabase = useSupabaseClient()
-const user = useSupabaseUser()
+const { isEditor } = useEditor()
 
 const title = ref('')
 const startDate = ref('')
@@ -43,34 +42,28 @@ async function createTrip() {
   pending.value = true
   errorMessage.value = ''
 
-  // Same shape as the upload page: `useSupabaseUser` hands back the decoded
-  // JWT, so the id is `sub` and a wrong claim name would silently be undefined.
-  const authorId = user.value?.sub
-  if (!authorId) {
+  // The author is no longer sent: the route takes it from the verified Access
+  // token, so there is nothing here that could claim to be someone else.
+  try {
+    await $fetch('/api/trips', {
+      method: 'POST',
+      body: {
+        slug: slug.value,
+        title: title.value.trim(),
+        start_date: startDate.value,
+        end_date: endDate.value,
+        start_place: startPlace.value.trim() || null,
+        end_place: endPlace.value.trim() || null,
+        notes: notes.value.trim() || null,
+      },
+    })
+  } catch (error) {
     pending.value = false
-    errorMessage.value = 'Not signed in — reload the page and try again.'
-    return
-  }
-
-  const { error } = await supabase.from('trips').insert({
-    slug: slug.value,
-    title: title.value.trim(),
-    start_date: startDate.value,
-    end_date: endDate.value,
-    start_place: startPlace.value.trim() || null,
-    end_place: endPlace.value.trim() || null,
-    notes: notes.value.trim() || null,
-    created_by: authorId,
-  })
-
-  if (error) {
-    pending.value = false
-    // The slug is derived from the title, so a unique violation means the
-    // title collides — say that rather than leaking the constraint name.
+    // The route already turns a slug collision into a sentence about the
+    // title, since the slug is derived from it.
     errorMessage.value =
-      error.code === '23505'
-        ? `There's already a trip called “${title.value.trim()}”.`
-        : error.message
+      (error as { statusMessage?: string })?.statusMessage ??
+      'That didn\'t save. Are you still signed in?'
     return
   }
 
@@ -81,7 +74,7 @@ async function createTrip() {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <NuxtLink class="back" to="/trips">&larr; All trips</NuxtLink>
+      <SiteNav />
       <AccountControl />
     </div>
     <h1>New trip</h1>
@@ -161,11 +154,6 @@ async function createTrip() {
   flex-wrap: wrap;
 }
 
-.back {
-  color: #38bdf8;
-  text-decoration: none;
-  font-size: 0.9rem;
-}
 
 h1 {
   margin: 1rem 0 0.5rem;

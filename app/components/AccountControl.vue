@@ -2,35 +2,37 @@
 // The only always-visible answer to "am I signed in?". Before this, the sole
 // indicator anywhere was the email on /upload, so being signed out was
 // indistinguishable from the app simply having no editing — and in the
-// installed PWA there is no address bar to type /login into, which made
+// installed PWA there is no address bar to type a URL into, which made
 // signing in impossible rather than merely obscure.
-const supabase = useSupabaseClient()
-const user = useSupabaseUser()
-const route = useRoute()
+//
+// Both links below are plain anchors on purpose. Access works at the edge, so
+// it only sees a real navigation; a client-side route change would never reach
+// it and the login would silently not happen.
+const { email, isEditor } = useEditor()
 
-async function signOut() {
-  await supabase.auth.signOut()
-  await navigateTo('/')
-}
+// Signing in means visiting a path Access protects and letting it challenge.
+// /signin exists only to be that path: it has nothing on it, and it sends you
+// back where you were. Pointing this at /upload also worked, but landing on an
+// upload form when you asked to sign in reads as a wrong turn.
+const route = useRoute()
+const signInHref = computed(
+  () => `/signin?next=${encodeURIComponent(route.fullPath)}`,
+)
+
+// Access owns the session cookie, so only Access can clear it.
+const SIGN_OUT = '/cdn-cgi/access/logout'
 </script>
 
 <template>
   <div class="account">
-    <template v-if="user">
-      <span class="who">{{ user.email }}</span>
-      <button class="link" @click="signOut">Sign out</button>
-    </template>
+    <!-- The address is not shown. It said nothing you didn't know — you are
+         the one signed in — and on a narrow screen it pushed the nav onto a
+         third row. The title still carries it for the rare "which account?". -->
+    <a v-if="isEditor" class="link" :href="SIGN_OUT" :title="`Signed in as ${email}`">
+      Sign out
+    </a>
 
-    <!-- Carries where you were, so signing in returns you here rather than
-         dumping you on /upload. Nuxt's own redirect cookie only gets set when
-         a gated route bounces you, which isn't what happened here. -->
-    <NuxtLink
-      v-else
-      class="link"
-      :to="{ path: '/login', query: { next: route.fullPath } }"
-    >
-      Sign in
-    </NuxtLink>
+    <a v-else class="link" :href="signInHref">Sign in</a>
   </div>
 </template>
 
@@ -43,13 +45,6 @@ async function signOut() {
   font-size: 0.85rem;
 }
 
-.who {
-  color: #94a3b8;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 11rem;
-}
 
 .link {
   flex: 0 0 auto;

@@ -8,6 +8,15 @@ export type MapPoint = {
   sub?: string
   lat: number
   lon: number
+  // Which trip the point belongs to, and where to send someone who clicks its
+  // popup. Only the all-trips map sets these — a single trip's map has one
+  // subject and nothing to link to.
+  tripId?: string
+  tripTitle?: string
+  tripSlug?: string
+  // Index into TRIP_COLOURS. Absent means the kind-based colours below, which
+  // is what a single trip's map wants.
+  colour?: number
 }
 
 const props = defineProps<{
@@ -15,6 +24,10 @@ const props = defineProps<{
   // When set, the next click on the map reports a coordinate instead of doing
   // nothing. The parent decides what it's for.
   picking: boolean
+  // When set, every point belonging to another trip dims. The view deliberately
+  // stays where it is: re-framing on each selection loses the overview, which
+  // is the reason to be on an all-trips map at all.
+  focusedTripId?: string | null
 }>()
 
 const emit = defineEmits<{ place: [{ lat: number; lon: number }] }>()
@@ -47,13 +60,65 @@ const STYLE = {
 // Australia, so an empty map opens somewhere plausible rather than off Africa.
 const FALLBACK_CENTRE: [number, number] = [139.7, -34.3]
 
+// Two elements, not one: MapLibre owns `transform` on whatever element it is
+// given, using it to position the marker. Anything that wants to scale — which
+// focusing does — has to be inside that, or the pin detaches from its
+// coordinate.
 function markerElement(point: MapPoint) {
+  const anchor = document.createElement('div')
+  anchor.className = 'pin-anchor'
+  anchor.title = point.label
+
   const el = document.createElement('div')
   el.className = `pin pin-${point.kind}`
   el.textContent =
     point.kind === 'start' ? 'A' : point.kind === 'end' ? 'B' : (point.sub ?? '')
-  el.title = point.label
-  return el
+  // A trip colour overrides the kind colour, so one trip's points read as a
+  // set. The A/B/number glyph still says which kind each one is.
+  if (point.colour !== undefined) {
+    el.style.background = tripColour(point.colour)
+  }
+
+  anchor.appendChild(el)
+  return anchor
+}
+
+// Trip titles and campsite names are typed by editors and land in the popup's
+// markup. Escaped rather than trusted: `setHTML` would otherwise run whatever
+// a name contained.
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+// What a point says when you click it. On the all-trips map that means naming
+// the trip and offering a way into it; on a single trip's map the trip is
+// already the page you're on, so it stays a plain line of text.
+function popupHtml(point: MapPoint) {
+  const place =
+    point.kind === 'start'
+      ? 'Put-in'
+      : point.kind === 'end'
+        ? 'Take-out'
+        : 'Campsite'
+
+  // On the all-trips map `label` is prefixed with the trip title, which the
+  // heading already says. Strip it rather than read it twice.
+  const name =
+    point.tripTitle && point.label.startsWith(`${point.tripTitle} — `)
+      ? point.label.slice(point.tripTitle.length + 3)
+      : point.label
+
+  if (!point.tripSlug) return `<p class="pop-name">${escapeHtml(name)}</p>`
+
+  return [
+    `<p class="pop-trip">${escapeHtml(point.tripTitle ?? '')}</p>`,
+    `<p class="pop-name"><span class="pop-kind">${place}</span> ${escapeHtml(name)}</p>`,
+    `<a class="pop-link" href="/trips/${encodeURIComponent(point.tripSlug)}">Open this trip &rarr;</a>`,
+  ].join('')
 }
 
 async function draw(maplibre: typeof import('maplibre-gl')) {
@@ -63,13 +128,18 @@ async function draw(maplibre: typeof import('maplibre-gl')) {
   markers = []
 
   for (const point of props.points) {
+    const element = markerElement(point)
+    if (props.focusedTripId) {
+      element.classList.add(
+        point.tripId === props.focusedTripId ? 'is-focused' : 'is-dimmed',
+      )
+    }
     markers.push(
-      new maplibre.Marker({ element: markerElement(point) })
+      new maplibre.Marker({ element })
         .setLngLat([point.lon, point.lat])
         .setPopup(
-          new maplibre.Popup({ offset: 18, closeButton: false }).setText(
-            point.sub ? `${point.label} — ${point.sub}` : point.label,
-          ),
+          new maplibre.Popup({ offset: 18, closeButton: true, maxWidth: '16rem' })
+            .setHTML(popupHtml(point)),
         )
         .addTo(map),
     )
@@ -155,6 +225,14 @@ onMounted(async () => {
     () => props.points,
     async () => draw(await import('maplibre-gl')),
     { deep: true },
+  )
+
+  // Focus only changes which markers are dimmed, so this redraws them without
+  // touching the view — `frame` is a no-op once the reader has moved, and even
+  // before that the bounds haven't changed.
+  watch(
+    () => props.focusedTripId,
+    async () => draw(await import('maplibre-gl')),
   )
 })
 
@@ -279,5 +357,105 @@ onBeforeUnmount(() => {
 
 .pin-campsite {
   background: #38bdf8;
+}
+
+/* Focusing works from both ends: the chosen trip grows and gains a ring, the
+   rest drop back to grey. Dimming alone was too quiet to find a trip by. The
+   others stay visible and clickable — they are the context that makes the
+   focused one mean anything. */
+.pin-anchor .pin {
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease,
+    box-shadow 0.15s ease,
+    filter 0.15s ease;
+}
+
+.pin-anchor.is-dimmed .pin {
+  opacity: 0.3;
+  filter: grayscale(1);
+  transform: scale(0.8);
+  box-shadow: none;
+}
+
+.pin-anchor.is-dimmed:hover .pin {
+  opacity: 0.75;
+  filter: none;
+}
+
+.pin-anchor.is-focused {
+  z-index: 3;
+}
+
+.pin-anchor.is-focused .pin {
+  transform: scale(1.35);
+  border-color: #f8fafc;
+  box-shadow:
+    0 0 0 0.2rem #f8fafc66,
+    0 0.25rem 0.6rem rgb(0 0 0 / 0.55);
+}
+
+/* The popup's contents are built in `popupHtml` and live in MapLibre's DOM,
+   outside this component's scope, so these are global too. */
+.maplibregl-popup-content {
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  padding: 0.7rem 0.85rem;
+  font: 400 0.85rem/1.4 system-ui, sans-serif;
+}
+
+.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: #1e293b;
+}
+
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: #1e293b;
+}
+
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: #1e293b;
+}
+
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: #1e293b;
+}
+
+.maplibregl-popup-close-button {
+  color: #64748b;
+  font-size: 1.1rem;
+  padding: 0 0.3rem;
+}
+
+.pop-trip {
+  margin: 0 0 0.2rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.pop-name {
+  margin: 0;
+  color: #cbd5f5;
+}
+
+.pop-kind {
+  color: #64748b;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 0.3rem;
+}
+
+.pop-link {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: #38bdf8;
+  text-decoration: none;
+  font-size: 0.8rem;
+}
+
+.pop-link:hover {
+  text-decoration: underline;
 }
 </style>

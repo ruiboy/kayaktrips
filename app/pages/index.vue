@@ -22,7 +22,7 @@ useHead({
 
       <div class="copy">
         <p class="eyebrow">Kayak Trips</p>
-        <h1>Every put-in, campsite, and paddle &mdash; in one place.</h1>
+        <h1>Every trip, campsite, and paddle &mdash; in one place.</h1>
         <p class="lede">
           For the trips we've paddled: the water, the campsites, the photos
           that came back with us.
@@ -30,6 +30,7 @@ useHead({
         <div class="actions">
           <NuxtLink class="cta" to="/trips">See the trips &rarr;</NuxtLink>
           <NuxtLink class="cta cta-quiet" to="/photos">See the photos &rarr;</NuxtLink>
+          <NuxtLink class="cta cta-quiet" to="/maps">See the maps &rarr;</NuxtLink>
         </div>
 
         <InstallButton class="install-slot" />
