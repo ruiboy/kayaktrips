@@ -317,6 +317,13 @@ Design intent worth preserving:
 - R2: **10 GB**, egress free. Currently 86 MB across 30 photos.
 - Access: **50 users**.
 - **Nothing pauses.** That was the point of leaving Supabase.
+- ⚠️ **The Supabase project is kept on purpose, paused, as the only
+  off-Cloudflare copy of the photo originals.** R2 has no backups and no
+  versioning, and the 86 MB of originals are the one thing here that can't be
+  retyped. A paused free project is restorable from the dashboard for a year,
+  costs nothing, and needs no attention — so leave it paused rather than
+  un-pausing or deleting it. Delete it once R2 has a backup story. The Vercel
+  project was deleted on 2026-09-13; Supabase deliberately was not.
 - Upload size and type are enforced in `server/api/photos/index.post.ts`
   (10 MB, MIME allowlist) — a real boundary now, not the UX guard the
   client-side check in `app/pages/upload.vue` was.
