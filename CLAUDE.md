@@ -265,8 +265,13 @@ Design intent worth preserving:
 - Upload size and type are enforced in `server/api/photos/index.post.ts`
   (10 MB, MIME allowlist) — a real boundary now, not the UX guard the
   client-side check in `app/pages/upload.vue` was.
-- ⚠️ 30 photos are already 86 MB. Downscaling on upload is the obvious win and
-  hasn't been done.
+- ⚠️ **The gallery downloads 86 MB to render 208px tiles.** `/photos` lays out
+  `minmax(13rem, 1fr)` but serves full 4000x3000 originals — 72 seconds on a
+  10 Mbps phone. The fix is small variants served to the grid, not resizing on
+  upload: storage and egress are free here, so nothing is gained by destroying
+  originals, and the full-size click-through should stay full size.
+  (This line previously said "86 MB is too much storage" — a judgement carried
+  over from Supabase's 1 GB cap that stopped being true at the migration.)
 
 ## Scope discipline
 
