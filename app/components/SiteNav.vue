@@ -8,6 +8,9 @@ const route = useRoute()
 
 const SECTIONS = [
   { label: 'Trips', to: '/trips' },
+  // "Camps", not "Campsites": with four sections the full word was what pushed
+  // Sign in onto a second line on a phone.
+  { label: 'Camps', to: '/campsites' },
   { label: 'Photos', to: '/photos' },
   { label: 'Maps', to: '/maps' },
 ]
@@ -47,7 +50,7 @@ function isCurrent(to: string) {
 .site-nav {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: 0.75rem;
   min-width: 0;
   flex-wrap: wrap;
 }
@@ -78,7 +81,7 @@ function isCurrent(to: string) {
 ul {
   list-style: none;
   display: flex;
-  gap: 1rem;
+  gap: 0.75rem;
   margin: 0;
   padding: 0;
 }

@@ -38,6 +38,19 @@ export function formatDay(iso: string): string {
   return dayFormat.format(parseDay(iso))
 }
 
+// For lists that span trips, where the trip heading isn't there to say which
+// year a night belongs to.
+const dayYearFormat = new Intl.DateTimeFormat('en-AU', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+})
+
+export function formatDayWithYear(iso: string): string {
+  return dayYearFormat.format(parseDay(iso))
+}
+
 const rangeFormat = new Intl.DateTimeFormat('en-AU', {
   day: 'numeric',
   month: 'short',
