@@ -28,27 +28,17 @@ export function isoDayAfter(iso: string): string {
   return `${day.getFullYear()}-${month}-${date}`
 }
 
+// With the year: a campsite card also appears on the Campsites page, where no
+// trip heading above it says which year the night belongs to.
 const dayFormat = new Intl.DateTimeFormat('en-AU', {
-  weekday: 'short',
-  day: 'numeric',
-  month: 'short',
-})
-
-export function formatDay(iso: string): string {
-  return dayFormat.format(parseDay(iso))
-}
-
-// For lists that span trips, where the trip heading isn't there to say which
-// year a night belongs to.
-const dayYearFormat = new Intl.DateTimeFormat('en-AU', {
   weekday: 'short',
   day: 'numeric',
   month: 'short',
   year: 'numeric',
 })
 
-export function formatDayWithYear(iso: string): string {
-  return dayYearFormat.format(parseDay(iso))
+export function formatDay(iso: string): string {
+  return dayFormat.format(parseDay(iso))
 }
 
 const rangeFormat = new Intl.DateTimeFormat('en-AU', {
