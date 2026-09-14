@@ -192,7 +192,7 @@ function pointCount(tripId: string) {
          for anyone who scrolls for it without becoming the point of the site.
          Outside the v-else: campsites can be scored before anything is placed. -->
     <p class="more">
-      <NuxtLink to="/campsites">All campsites, best first &rarr;</NuxtLink>
+      <NuxtLink to="/campsites">All campsites &rarr;</NuxtLink>
     </p>
   </main>
 </template>

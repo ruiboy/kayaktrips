@@ -20,6 +20,24 @@ const requestFetch = useRequestFetch()
 const { data: campsites, error } = await useAsyncData('campsites-ranked', () =>
   requestFetch<RankedCampsite[]>('/api/campsites/ranked'),
 )
+
+// Ranked by default, or by night across every trip. Kept in the query string
+// so a reload or the back button from a trip page returns the same order.
+// Sorted here rather than refetched: the route already sends every row.
+const route = useRoute()
+const router = useRouter()
+
+const order = computed(() => (route.query.order === 'date' ? 'date' : 'ranked'))
+
+function setOrder(next: 'ranked' | 'date') {
+  router.replace({ query: { ...route.query, order: next === 'date' ? 'date' : undefined } })
+}
+
+const sorted = computed(() => {
+  const rows = campsites.value ?? []
+  if (order.value === 'ranked') return rows
+  return [...rows].sort((a, b) => a.camped_on.localeCompare(b.camped_on))
+})
 </script>
 
 <template>
@@ -29,8 +47,31 @@ const { data: campsites, error } = await useAsyncData('campsites-ranked', () =>
       <AccountControl />
     </div>
 
-    <h1>Campsites</h1>
-    <p class="lede">Every night on every trip, best first.</p>
+    <div class="head">
+      <div>
+        <h1>Campsites</h1>
+        <p class="lede">Every night on every trip.</p>
+      </div>
+
+      <div class="order" role="group" aria-label="Order">
+        <button
+          type="button"
+          :class="{ on: order === 'ranked' }"
+          :aria-pressed="order === 'ranked'"
+          @click="setOrder('ranked')"
+        >
+          Ranked
+        </button>
+        <button
+          type="button"
+          :class="{ on: order === 'date' }"
+          :aria-pressed="order === 'date'"
+          @click="setOrder('date')"
+        >
+          By date
+        </button>
+      </div>
+    </div>
 
     <p v-if="error" class="error">Couldn't load campsites: {{ error.message }}</p>
 
@@ -38,11 +79,11 @@ const { data: campsites, error } = await useAsyncData('campsites-ranked', () =>
       No campsites recorded yet. They're added from each trip's page.
     </p>
 
-    <!-- Name, trip, night and total, nothing more: this page is for spotting
-         the best sites, and the breakdown is on the trip page it links to.
-         Read-only, since editing needs the trip's dates and map. -->
+    <!-- Name, trip, night and total, nothing more: the breakdown is on the
+         trip page each links to. Read-only, since editing needs the trip's
+         dates and map. -->
     <ol v-else class="list">
-      <li v-for="site in campsites" :key="site.id">
+      <li v-for="site in sorted" :key="site.id">
         <div>
           <h2>{{ site.name }}</h2>
           <p class="trip">
@@ -77,13 +118,57 @@ const { data: campsites, error } = await useAsyncData('campsites-ranked', () =>
   flex-wrap: wrap;
 }
 
+/* Heading left, the order toggle level with it on the right; the toggle drops
+   beneath the heading when there isn't room. */
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
 h1 {
   margin: 1rem 0 0.5rem;
 }
 
 .lede {
-  margin: 0 0 1.5rem;
+  margin: 0;
   color: #94a3b8;
+}
+
+/* Two joined buttons, the current one filled — the same filled accent as an
+   armed control elsewhere on the site. */
+.order {
+  display: inline-flex;
+  border: 1px solid #334155;
+  border-radius: 0.4rem;
+  overflow: hidden;
+}
+
+.order button {
+  background: none;
+  border: none;
+  color: #38bdf8;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+}
+
+.order button + button {
+  border-left: 1px solid #334155;
+}
+
+.order button:hover:not(.on) {
+  background: #1e293b;
+}
+
+.order button.on {
+  background: #38bdf8;
+  color: #0f172a;
+  font-weight: 600;
 }
 
 .empty {
