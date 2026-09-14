@@ -7,9 +7,9 @@
 const route = useRoute()
 
 const SECTIONS = [
-  { label: 'Maps', to: '/maps' },
   { label: 'Trips', to: '/trips' },
   { label: 'Photos', to: '/photos' },
+  { label: 'Maps', to: '/maps' },
 ]
 
 // A trip page marks Trips, and /upload marks Photos — the section you are in is
