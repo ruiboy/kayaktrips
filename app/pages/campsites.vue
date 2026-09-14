@@ -10,7 +10,7 @@ type RankedCampsite = {
   score: number | null
   trip_slug: string
   trip_title: string
-}
+} & Record<RatingKey, number | null>
 
 // Public read, so this renders server-side for anonymous visitors too.
 // `useRequestFetch`, not bare `$fetch`: on Workers an internal fetch starts a
@@ -31,6 +31,12 @@ const order = computed(() => (route.query.order === 'date' ? 'date' : 'ranked'))
 
 function setOrder(next: 'ranked' | 'date') {
   router.replace({ query: { ...route.query, order: next === 'date' ? 'date' : undefined } })
+}
+
+// What the site did well: an icon for each category scored 1.5 or 2, in the
+// usual order. The numbers themselves stay on the trip page.
+function strengths(site: RankedCampsite) {
+  return RATINGS.filter(({ key }) => (site[key] ?? 0) >= 1.5)
 }
 
 const sorted = computed(() => {
@@ -92,12 +98,23 @@ const sorted = computed(() => {
           <p class="when">{{ formatDay(site.camped_on) }}</p>
         </div>
 
-        <p class="score">
-          <template v-if="site.score !== null">
-            {{ site.score }}<span class="out-of">/10</span>
-          </template>
-          <span v-else class="unrated">Unrated</span>
-        </p>
+        <div class="side">
+          <p class="score">
+            <template v-if="site.score !== null">
+              {{ site.score }}<span class="out-of">/10</span>
+            </template>
+            <span v-else class="unrated">Unrated</span>
+          </p>
+
+          <ul v-if="strengths(site).length" class="strengths">
+            <li v-for="rating in strengths(site)" :key="rating.key">
+              <RatingIcon
+                :name="rating.key"
+                :label="`${rating.label}: ${site[rating.key]}/2`"
+              />
+            </li>
+          </ul>
+        </div>
       </li>
     </ol>
   </main>
@@ -191,9 +208,9 @@ h1 {
 
 /* Type and colours follow the campsite cards on the trip page, so a site
    reads the same in both places. */
-.list li {
+.list > li {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
   background: #1e293b;
@@ -201,8 +218,26 @@ h1 {
   padding: 1rem 1.25rem;
 }
 
-.list li > div {
+.list > li > div:first-child {
   min-width: 0;
+}
+
+/* Score on top, the strengths beneath it, both against the right edge — the
+   space under the score was empty, and it keeps the name's column clear. */
+.side {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.45rem;
+}
+
+.strengths {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 0.35rem;
 }
 
 h2 {
