@@ -223,7 +223,18 @@ function onTripSaved(row: {
         />
 
         <div class="trip-head-copy">
-          <h1>{{ data.trip.title }}</h1>
+          <!-- The pencil trails the title because the editor changes the whole
+               trip, and the title is what names the whole trip. Inline, as on
+               photo captions, so a wrapped title keeps it by the last word. -->
+          <h1>
+            {{ data.trip.title }}
+            <EditButton
+              v-if="isEditor"
+              class="title-edit"
+              :label="`Edit ${data.trip.title}`"
+              @click="editor?.show()"
+            />
+          </h1>
 
           <p class="meta">
             {{ formatDateRange(data.trip.start_date, data.trip.end_date) }}
@@ -231,18 +242,8 @@ function onTripSaved(row: {
             {{ tripDayCount(data.trip.start_date, data.trip.end_date) }} days
           </p>
 
-          <!-- The pencil trails the route the way it trails a photo caption,
-               rather than taking a row of its own under the heading. -->
-          <p v-if="data.trip.start_place || data.trip.end_place || isEditor" class="route">
-            <template v-if="data.trip.start_place || data.trip.end_place">
-              {{ data.trip.start_place ?? '?' }} &rarr; {{ data.trip.end_place ?? '?' }}
-            </template>
-            <EditButton
-              v-if="isEditor"
-              class="inline-edit"
-              :label="`Edit ${data.trip.title}`"
-              @click="editor?.show()"
-            />
+          <p v-if="data.trip.start_place || data.trip.end_place" class="route">
+            {{ data.trip.start_place ?? '?' }} &rarr; {{ data.trip.end_place ?? '?' }}
           </p>
         </div>
       </header>
@@ -273,7 +274,7 @@ function onTripSaved(row: {
 
         <p v-if="isEditor && !mapPoints.length" class="empty">
           Nothing placed yet. Points are set by the pencil beside the trip's
-          route, and in each campsite's own form.
+          title, and in each campsite's own form.
         </p>
       </section>
 
@@ -426,6 +427,13 @@ function onTripSaved(row: {
 
 h1 {
   margin: 0 0 0.5rem;
+}
+
+/* Kept at its usual size rather than scaled to the heading, and centred on
+   the text — `em` offsets like the captions' would be doubled at this size. */
+.title-edit {
+  vertical-align: middle;
+  margin-left: 0.25rem;
 }
 
 .meta {
