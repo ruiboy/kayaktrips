@@ -187,6 +187,13 @@ function pointCount(tripId: string) {
         </li>
       </ul>
     </template>
+
+    <!-- The campsite ranking lives here rather than in the nav, so it's there
+         for anyone who scrolls for it without becoming the point of the site.
+         Outside the v-else: campsites can be scored before anything is placed. -->
+    <p class="more">
+      <NuxtLink to="/campsites">All campsites, best first &rarr;</NuxtLink>
+    </p>
   </main>
 </template>
 
@@ -358,6 +365,20 @@ h1 {
 }
 
 .open:hover {
+  text-decoration: underline;
+}
+
+.more {
+  margin: 2rem 0 0;
+  font-size: 0.85rem;
+}
+
+.more a {
+  color: #38bdf8;
+  text-decoration: none;
+}
+
+.more a:hover {
   text-decoration: underline;
 }
 </style>

@@ -8,17 +8,17 @@ const route = useRoute()
 
 const SECTIONS = [
   { label: 'Trips', to: '/trips' },
-  // "Camps", not "Campsites": with four sections the full word was what pushed
-  // Sign in onto a second line on a phone.
-  { label: 'Camps', to: '/campsites' },
   { label: 'Photos', to: '/photos' },
   { label: 'Maps', to: '/maps' },
 ]
 
-// A trip page marks Trips, and /upload marks Photos — the section you are in is
-// the one you'd go back to, not only the one whose path matches exactly.
+// A trip page marks Trips, /upload marks Photos, and the campsite ranking marks
+// Maps — the section you are in is the one you'd go back to, not only the one
+// whose path matches exactly. The ranking is deliberately not a section of its
+// own: it's reached from the foot of /maps so it doesn't become the headline.
 function isCurrent(to: string) {
   if (to === '/photos') return route.path.startsWith('/photos') || route.path.startsWith('/upload')
+  if (to === '/maps') return route.path.startsWith('/maps') || route.path.startsWith('/campsites')
   return route.path.startsWith(to)
 }
 </script>
@@ -50,7 +50,7 @@ function isCurrent(to: string) {
 .site-nav {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1.25rem;
   min-width: 0;
   flex-wrap: wrap;
 }
@@ -81,7 +81,7 @@ function isCurrent(to: string) {
 ul {
   list-style: none;
   display: flex;
-  gap: 0.75rem;
+  gap: 1rem;
   margin: 0;
   padding: 0;
 }
