@@ -3,7 +3,11 @@ useHead({
   title: 'Campsites — Kayak Trips',
 })
 
-type RankedCampsite = Campsite & {
+type RankedCampsite = {
+  id: string
+  name: string
+  camped_on: string
+  score: number | null
   trip_slug: string
   trip_title: string
 }
@@ -34,26 +38,27 @@ const { data: campsites, error } = await useAsyncData('campsites-ranked', () =>
       No campsites recorded yet. They're added from each trip's page.
     </p>
 
-    <template v-else>
-      <!-- The same card as the trip page, read-only here: editing a campsite
-           needs its trip's dates and map, which live on the trip page the
-           card links to. Unrated sites come last, from the route's ordering. -->
-      <ol class="list">
-        <li v-for="site in campsites" :key="site.id">
-          <CampsiteCard
-            :site="site"
-            :trip="{ slug: site.trip_slug, title: site.trip_title }"
-          />
-        </li>
-      </ol>
+    <!-- Name, trip, night and total, nothing more: this page is for spotting
+         the best sites, and the breakdown is on the trip page it links to.
+         Read-only, since editing needs the trip's dates and map. -->
+    <ol v-else class="list">
+      <li v-for="site in campsites" :key="site.id">
+        <div>
+          <h2>{{ site.name }}</h2>
+          <p class="trip">
+            <NuxtLink :to="`/trips/${site.trip_slug}`">{{ site.trip_title }}</NuxtLink>
+          </p>
+          <p class="when">{{ formatDay(site.camped_on) }}</p>
+        </div>
 
-      <ul class="legend">
-        <li v-for="rating in RATINGS" :key="rating.key">
-          <RatingIcon :name="rating.key" :label="rating.label" decorative />
-          <span>{{ rating.label }}</span>
-        </li>
-      </ul>
-    </template>
+        <p class="score">
+          <template v-if="site.score !== null">
+            {{ site.score }}<span class="out-of">/10</span>
+          </template>
+          <span v-else class="unrated">Unrated</span>
+        </p>
+      </li>
+    </ol>
   </main>
 </template>
 
@@ -89,32 +94,74 @@ h1 {
   color: #f87171;
 }
 
-/* Cards side by side, filling rows left to right in rank order, and one
-   column on a phone. 26rem keeps each card wide enough for its five ratings
-   to sit on one line. */
+/* Side by side in rank order, one column on a phone. */
 .list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(26rem, 100%), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr));
   gap: 0.75rem;
 }
 
-.legend {
-  list-style: none;
-  margin: 1.5rem 0 0;
-  padding: 0;
+/* Type and colours follow the campsite cards on the trip page, so a site
+   reads the same in both places. */
+.list li {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
-  color: #64748b;
-  font-size: 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  background: #1e293b;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
 }
 
-.legend li {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
+.list li > div {
+  min-width: 0;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.trip,
+.when {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+}
+
+.trip a {
+  color: #38bdf8;
+  text-decoration: none;
+}
+
+.trip a:hover {
+  text-decoration: underline;
+}
+
+.when {
+  color: #94a3b8;
+}
+
+.score {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #a3e635;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.out-of {
+  color: #64748b;
+  font-size: 0.75em;
+  font-weight: 400;
+}
+
+.unrated {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #64748b;
 }
 </style>
