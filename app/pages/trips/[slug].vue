@@ -231,17 +231,19 @@ function onTripSaved(row: {
             {{ tripDayCount(data.trip.start_date, data.trip.end_date) }} days
           </p>
 
-          <p v-if="data.trip.start_place || data.trip.end_place" class="route">
-            {{ data.trip.start_place ?? '?' }} &rarr; {{ data.trip.end_place ?? '?' }}
-          </p>
-
-          <div class="head-actions">
+          <!-- The pencil trails the route the way it trails a photo caption,
+               rather than taking a row of its own under the heading. -->
+          <p v-if="data.trip.start_place || data.trip.end_place || isEditor" class="route">
+            <template v-if="data.trip.start_place || data.trip.end_place">
+              {{ data.trip.start_place ?? '?' }} &rarr; {{ data.trip.end_place ?? '?' }}
+            </template>
             <EditButton
               v-if="isEditor"
+              class="inline-edit"
               :label="`Edit ${data.trip.title}`"
               @click="editor?.show()"
             />
-          </div>
+          </p>
         </div>
       </header>
 
@@ -271,7 +273,7 @@ function onTripSaved(row: {
 
         <p v-if="isEditor && !mapPoints.length" class="empty">
           Nothing placed yet. Points are set by the pencil beside the trip's
-          title, and in each campsite's own form.
+          route, and in each campsite's own form.
         </p>
       </section>
 
@@ -343,14 +345,6 @@ function onTripSaved(row: {
   max-width: 74rem;
   margin: 0 auto;
   padding: 2rem;
-}
-
-.head-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-  margin-top: 0.75rem;
 }
 
 .map-section {
