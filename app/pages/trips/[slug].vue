@@ -235,13 +235,7 @@ function onTripSaved(row: {
             {{ data.trip.start_place ?? '?' }} &rarr; {{ data.trip.end_place ?? '?' }}
           </p>
 
-          <!-- A plain anchor, not a NuxtLink: the router would treat this as a
-               navigation, and the browser's own hash jump is what's wanted. -->
           <div class="head-actions">
-            <a v-if="isEditor || mapPoints.length" class="to-map" href="#map">
-              {{ mapPoints.length ? 'See the map' : 'Place it on the map' }}
-              &darr;
-            </a>
             <EditButton
               v-if="isEditor"
               :label="`Edit ${data.trip.title}`"
@@ -260,6 +254,26 @@ function onTripSaved(row: {
       />
 
       <p v-if="data.trip.notes" class="notes">{{ data.trip.notes }}</p>
+
+      <!-- The page reads top to bottom as the trip does: where it went, where
+           you slept, what it looked like. -->
+      <section v-if="isEditor || mapPoints.length" class="map-section">
+        <div class="map-head">
+          <h2>Map</h2>
+        </div>
+
+        <ClientOnly>
+          <TripMap :points="mapPoints" :picking="false" />
+          <template #fallback>
+            <div class="map-placeholder">Loading the map&hellip;</div>
+          </template>
+        </ClientOnly>
+
+        <p v-if="isEditor && !mapPoints.length" class="empty">
+          Nothing placed yet. Points are set by the pencil beside the trip's
+          title, and in each campsite's own form.
+        </p>
+      </section>
 
       <div class="columns">
         <TripCampsites
@@ -313,24 +327,6 @@ function onTripSaved(row: {
         </section>
       </div>
 
-      <section v-if="isEditor || mapPoints.length" id="map" class="map-section">
-        <div class="map-head">
-          <h2>Map</h2>
-        </div>
-
-        <ClientOnly>
-          <TripMap :points="mapPoints" :picking="false" />
-          <template #fallback>
-            <div class="map-placeholder">Loading the map&hellip;</div>
-          </template>
-        </ClientOnly>
-
-        <p v-if="isEditor && !mapPoints.length" class="empty">
-          Nothing placed yet. Points are set by the pencil beside the trip's
-          title, and in each campsite's own form.
-        </p>
-      </section>
-
       <PhotoDialog
         v-if="isEditor"
         ref="photoDialog"
@@ -357,20 +353,8 @@ function onTripSaved(row: {
   margin-top: 0.75rem;
 }
 
-.to-map {
-  color: #38bdf8;
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-
-.to-map:hover {
-  text-decoration: underline;
-}
-
 .map-section {
   margin-top: 2.5rem;
-  /* So the jump doesn't land the heading flush against the top of the window. */
-  scroll-margin-top: 1.5rem;
 }
 
 .map-head {
