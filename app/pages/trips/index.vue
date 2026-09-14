@@ -89,7 +89,7 @@ function badgeUrl(trip: TripRow) {
 
 <style scoped>
 .wrap {
-  max-width: 48rem;
+  max-width: var(--page-width);
   margin: 0 auto;
   padding: 2rem;
 }
@@ -141,16 +141,20 @@ h1 {
   color: #f87171;
 }
 
+/* Cards side by side on a wide screen rather than bars stretched across the
+   full page width with the text bunched at the left. `min(…, 100%)` so a
+   phone gets one column without a breakpoint. */
 .list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(22rem, 100%), 1fr));
   gap: 0.75rem;
 }
 
 .list a {
+  height: 100%;
   display: flex;
   align-items: center;
   gap: 1.25rem;

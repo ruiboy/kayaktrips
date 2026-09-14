@@ -8,6 +8,9 @@
 <style>
 :root {
   color-scheme: dark;
+  /* One width for every section page, so the nav doesn't shift sideways as
+     you move between them. The editor forms stay narrower on purpose. */
+  --page-width: 74rem;
 }
 
 /* For in-page jumps like the trip page's link down to its map. Gated on the

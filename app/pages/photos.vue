@@ -109,7 +109,7 @@ function formatDate(iso: string) {
 
 <style scoped>
 .wrap {
-  max-width: 60rem;
+  max-width: var(--page-width);
   margin: 0 auto;
   padding: 2rem;
 }

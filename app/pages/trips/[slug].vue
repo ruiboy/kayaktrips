@@ -343,7 +343,7 @@ function onTripSaved(row: {
 
 <style scoped>
 .wrap {
-  max-width: 74rem;
+  max-width: var(--page-width);
   margin: 0 auto;
   padding: 2rem;
 }
