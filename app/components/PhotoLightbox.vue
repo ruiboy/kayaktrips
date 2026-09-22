@@ -38,12 +38,45 @@ const current = computed(() => props.photos[index.value] ?? null)
 // the right size too.
 const src = ref('')
 
+// The photo's shape, which the frame is sized from. Taken from whichever image
+// has loaded — a thumbnail keeps its original's aspect ratio, so the cached one
+// answers this before the original arrives. 4:3 until then, and only for the
+// first photo of a session: a landscape guess is right more often than not and
+// nothing is distorted by a wrong one, since the image is `contain`ed inside
+// the frame it sizes.
+const ratio = ref(4 / 3)
+
+// How tall the photo may be drawn: its own height, and no more. Half this
+// library predates any phone worth the name — eight of thirty photos are
+// 960px wide — and stretching one of those across a desktop window invents
+// most of what it shows. On a phone every photo is larger than the viewport,
+// so the cap never binds and nothing changes there.
+const cap = ref<number | null>(null)
+
+// Thumbnails are made with `scale-down` at this width (THUMB_WIDTH, in
+// server/utils/thumbs.ts), so one narrower than this is its original at full
+// size and can be trusted for the cap. One exactly this wide says only "the
+// original is at least this big" — so the cap waits for the original itself
+// rather than pinning a 4000px photo at 1024.
+const THUMB_WIDTH = 1024
+
+function onLoad(event: Event) {
+  const img = event.target as HTMLImageElement
+  if (!img.naturalWidth || !img.naturalHeight) return
+
+  ratio.value = img.naturalWidth / img.naturalHeight
+
+  const isThumb = img.currentSrc.includes('-thumb.webp')
+  if (!isThumb || img.naturalWidth < THUMB_WIDTH) cap.value = img.naturalHeight
+}
+
 // Called on every move rather than watching `current`, because reopening the
 // same photo has to reload it and a watcher would see no change at all.
 function display(at: number) {
   const photo = props.photos[at]
   if (!photo) return
   index.value = at
+  cap.value = null
 
   const full = photoUrl(photo.storage_path)
   src.value = thumbUrl(photo.storage_path)
@@ -101,8 +134,11 @@ defineExpose({ show })
       <!-- Shrink-wraps the photo, so the controls sit on its edges rather than
            on the screen's: on a portrait photo they stay over the picture
            instead of stranding themselves out in the margin. -->
-      <div class="frame">
-        <img :src="src" :alt="current.caption ?? ''" />
+      <div
+        class="frame"
+        :style="{ '--ratio': ratio, '--cap': cap ? `${cap}px` : '100cqh' }"
+      >
+        <img :src="src" :alt="current.caption ?? ''" @load="onLoad" />
 
         <button class="control close" aria-label="Close" @click="dialog?.close()">
           ×
@@ -164,26 +200,39 @@ defineExpose({ show })
   justify-content: center;
   width: 100%;
   height: 100%;
+  /* Measured, so the frame below can size itself against this box in both
+     axes. Capping the image against the viewport instead looked right but
+     only ever scaled it down: a photo narrower than the window sat at its
+     natural size with dark bands all round, and nothing in CSS lets a height
+     be worked out from a container's width without this. */
+  container-type: size;
 }
 
+/* The largest box of the photo's shape that fits: the height it wants, or the
+   height its width allows, whichever is smaller. Sized rather than shrink-
+   wrapped around the image so it scales up as well as down — and because the
+   controls hang off this box, they stay on the picture's own edges rather than
+   out in the margin beside a portrait photo. */
 .frame {
   position: relative;
-  display: flex;
-  max-width: 100%;
-  max-height: 100%;
+  aspect-ratio: var(--ratio, 1.3333);
+  /* The height it wants, the height its width allows, or the height it
+     actually has — whichever is smallest. The third term is what keeps a small
+     photo from being blown up to fit; on a phone it never wins. */
+  height: min(100cqh, calc(100cqw / var(--ratio, 1.3333)), var(--cap, 100cqh));
+  /* The cap arrives with the original, a moment after the thumbnail has
+     painted. For the few photos between 1024px and a window's width that
+     means settling to their true size rather than snapping to it. */
+  transition: height 0.15s ease-out;
 }
 
-/* Capped against the viewport rather than against a parent, so the browser's
-   own rule for replaced elements does the fitting: whichever side reaches the
-   screen first sets the size and the other follows the photo's shape. A
-   landscape photo fills the width, a portrait one the height. */
 .frame img {
   display: block;
-  width: auto;
-  height: auto;
-  max-width: 100vw;
-  max-height: 100vh;
-  max-height: 100dvh;
+  width: 100%;
+  height: 100%;
+  /* The frame is already the photo's shape, so this only guards the moment
+     before a new one's dimensions are known. */
+  object-fit: contain;
 }
 
 /* No panel behind them — a plate for each button put a slab of chrome on top
