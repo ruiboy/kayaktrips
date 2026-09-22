@@ -37,8 +37,8 @@ const emit = defineEmits<{ saved: [EditableTrip] }>()
 const dialog = ref<HTMLDialogElement | null>(null)
 
 // Deleting a trip is the one act here that takes other rows with it, so it
-// hides until asked for and then wants the title typed. Campsites cascade;
-// photos survive with a null trip_id, which is what the copy says.
+// hides until asked for and then wants the title typed. Campsites and links
+// cascade; photos survive with a null trip_id, which is what the copy says.
 const armDelete = ref(false)
 const deleteConfirm = ref('')
 const deleteError = ref('')
@@ -408,8 +408,8 @@ async function save() {
            it makes deleting the wrong trip from a list of similar names hard. -->
       <div v-if="armDelete" class="danger">
         <p class="danger-what">
-          Deletes <strong>{{ props.trip.title }}</strong> and its campsites.
-          Photos filed under it survive, unfiled, in the gallery.
+          Deletes <strong>{{ props.trip.title }}</strong>, its campsites and its
+          links. Photos filed under it survive, unfiled, in the gallery.
         </p>
         <label>
           Type the trip's name to confirm

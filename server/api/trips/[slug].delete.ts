@@ -1,5 +1,6 @@
 // Deleting a trip is the one destructive act with reach beyond its own row.
-// Campsites cascade away with it — they have no meaning apart from the trip.
+// Campsites and links cascade away with it — neither has meaning apart from
+// the trip.
 // Photos do not: `photos.trip_id` is `on delete set null`, so they survive as
 // unfiled records in the gallery, and their storage objects are left alone.
 // That asymmetry is deliberate and documented in CLAUDE.md.
@@ -17,11 +18,12 @@ export default defineEventHandler(async (event) => {
   )
   if (!trip) throw createError({ statusCode: 404, statusMessage: 'No such trip' })
 
-  const counts = await first<{ campsites: number; photos: number }>(
+  const counts = await first<{ campsites: number; photos: number; links: number }>(
     db(event)
       .prepare(
         `select (select count(*) from campsites where trip_id = ?1) as campsites,
-                (select count(*) from photos    where trip_id = ?1) as photos`,
+                (select count(*) from photos    where trip_id = ?1) as photos,
+                (select count(*) from links     where trip_id = ?1) as links`,
       )
       .bind(trip.id),
   )
@@ -33,5 +35,6 @@ export default defineEventHandler(async (event) => {
     title: trip.title,
     campsitesDeleted: counts?.campsites ?? 0,
     photosUnfiled: counts?.photos ?? 0,
+    linksDeleted: counts?.links ?? 0,
   }
 })

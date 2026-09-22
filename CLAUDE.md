@@ -247,6 +247,44 @@ Design intent worth preserving:
 - No `unique (trip_id, camped_on)`: it would block recording both the site you
   bailed on at dusk and the one you slept at.
 
+### `links`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `text` | PK — a uuid generated in app code |
+| `trip_id` | `text` | not null, FK → `trips`, **`on delete cascade`** |
+| `url` | `text` | not null — as pasted, normalised by `URL` |
+| `label` | `text` | nullable — what to call it; falls back to the host |
+| `created_by` | `text` | the Access email, nullable. No FK |
+| `created_at` | `text` | not null, ISO 8601 UTC |
+
+Design intent worth preserving:
+
+- **No `kind` column.** Whether a URL is an embeddable video is worked out at
+  render time by `app/utils/links.ts`, the same way a photo's URL is worked out
+  from its storage path. A stored kind is a second answer that can disagree
+  with the URL it describes.
+- **No `position`, and no `unique (trip_id, url)`.** `created_at` orders them
+  until reordering is actually wanted, and the same video at two timestamps is
+  a real thing to want.
+- **`cleanUrl()` in `server/utils/links.ts` is the boundary**, and it refuses
+  anything but `http:` and `https:`. Only editors can write a link, but
+  everyone reads one back as an `href` — a stored `javascript:` URL is a script
+  the public runs by clicking a trip's own page. Nothing else in this app puts
+  a reader-supplied string into an attribute.
+- **Cascade, like campsites.** A link to a trip's video has no meaning once the
+  trip is gone. The trip delete route counts links alongside campsites so the
+  confirmation says what it is about to destroy.
+- **YouTube embeds are lazy and `nocookie`.** `youtube-nocookie.com` is
+  YouTube's own host for this and sets no tracking cookie until you press play;
+  `loading="lazy"` holds back the player — about a megabyte of JavaScript —
+  until the frame is nearly in view. If a trip ever carries several videos, the
+  next step is a click-to-play facade (the thumbnail from `i.ytimg.com`, swap in
+  the iframe on click), not a heavier page.
+- Anything that isn't a single YouTube video renders as a plain link, including
+  a YouTube channel or playlist URL — there is nothing there to embed.
+- **Links live in the second column of the trip page, under the photos.**
+
 ## Environment
 
 - **Node 22** (`.nvmrc`). Several transitive deps require it; Node 20 produces

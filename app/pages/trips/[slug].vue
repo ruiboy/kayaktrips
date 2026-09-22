@@ -290,54 +290,61 @@ function onTripSaved(row: {
           :context-points="endpointPoints"
         />
 
-        <section class="photos">
-          <div class="photos-head">
-            <h2>Photos</h2>
-            <div v-if="isEditor" class="photo-actions">
-              <NuxtLink class="ghost" :to="`/upload?trip=${data.trip.slug}`">
-                Add a photo
-              </NuxtLink>
+        <!-- Photos and links share the second column, so links sit under the
+             grid rather than starting a column of their own that would leave
+             the campsites beside a long run of white. -->
+        <div class="column">
+          <section class="photos">
+            <div class="photos-head">
+              <h2>Photos</h2>
+              <div v-if="isEditor" class="photo-actions">
+                <NuxtLink class="ghost" :to="`/upload?trip=${data.trip.slug}`">
+                  Add a photo
+                </NuxtLink>
+              </div>
             </div>
-          </div>
 
-          <p v-if="!data.photos.length" class="empty">
-            Nothing filed under this trip yet.
-          </p>
+            <p v-if="!data.photos.length" class="empty">
+              Nothing filed under this trip yet.
+            </p>
 
 
-          <ul v-if="data.photos.length" class="grid">
-            <li v-for="photo in data.photos" :key="photo.id">
-              <!-- Still a real link to the original, so middle-click and
-                   "open in new tab" keep working and it degrades without JS.
-                   The click itself opens the lightbox instead. -->
-              <a
-                :href="publicUrl(photo.storage_path)"
-                @click.prevent="lightbox?.show(photo.id)"
-              >
-                <img
-                  :src="thumb(photo.storage_path)"
-                  :alt="photo.caption ?? ''"
-                  loading="lazy"
-                />
-              </a>
+            <ul v-if="data.photos.length" class="grid">
+              <li v-for="photo in data.photos" :key="photo.id">
+                <!-- Still a real link to the original, so middle-click and
+                     "open in new tab" keep working and it degrades without JS.
+                     The click itself opens the lightbox instead. -->
+                <a
+                  :href="publicUrl(photo.storage_path)"
+                  @click.prevent="lightbox?.show(photo.id)"
+                >
+                  <img
+                    :src="thumb(photo.storage_path)"
+                    :alt="photo.caption ?? ''"
+                    loading="lazy"
+                  />
+                </a>
 
-              <!-- The pencil runs on from the caption text rather than sitting
-                   in a column of its own. Inline, so on a caption that wraps it
-                   follows the last word instead of hanging level with the first
-                   line and leaving a row of pencils at different heights. -->
-              <p v-if="photo.caption || isEditor" class="caption">
-                <span v-if="photo.id === badgePhotoId" class="is-badge" title="Trip badge">★</span>
-                {{ photo.caption }}
-                <EditButton
-                  v-if="isEditor"
-                  class="inline-edit"
-                  :label="`Edit ${photo.caption || 'this photo'}`"
-                  @click="photoDialog?.show(photo)"
-                />
-              </p>
-            </li>
-          </ul>
-        </section>
+                <!-- The pencil runs on from the caption text rather than sitting
+                     in a column of its own. Inline, so on a caption that wraps it
+                     follows the last word instead of hanging level with the first
+                     line and leaving a row of pencils at different heights. -->
+                <p v-if="photo.caption || isEditor" class="caption">
+                  <span v-if="photo.id === badgePhotoId" class="is-badge" title="Trip badge">★</span>
+                  {{ photo.caption }}
+                  <EditButton
+                    v-if="isEditor"
+                    class="inline-edit"
+                    :label="`Edit ${photo.caption || 'this photo'}`"
+                    @click="photoDialog?.show(photo)"
+                  />
+                </p>
+              </li>
+            </ul>
+          </section>
+
+          <TripLinks :trip-id="data.trip.id" />
+        </div>
       </div>
 
       <PhotoLightbox
@@ -394,6 +401,15 @@ function onTripSaved(row: {
 /* Campsites left, photos right. `auto-fit` rather than a fixed two-column
    rule, so the columns drop under each other whenever there isn't room for
    both — no breakpoint to keep in sync with the content. */
+/* The second grid cell holds two sections stacked, so they need their own
+   spacing — the grid's `gap` only separates the columns. */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  min-width: 0;
+}
+
 .columns {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr));

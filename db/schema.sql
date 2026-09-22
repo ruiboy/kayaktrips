@@ -62,5 +62,25 @@ create table campsites (
   created_at  text not null default (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
+-- Anything a trip points at that isn't a photo: a video of the run, a report,
+-- a gauge reading. Cascades like campsites, because a link to a trip's video
+-- has no meaning once the trip is gone.
+--
+-- No `kind` column: whether a URL is an embeddable video falls out of the URL
+-- itself at render time, the same way a photo's URL falls out of its storage
+-- path. A stored kind is a second answer that can disagree with the first.
+-- No `position` either — created_at orders them until reordering is wanted —
+-- and no unique on (trip_id, url), since the same video at two timestamps is
+-- a real thing to want.
+create table links (
+  id          text not null primary key,
+  trip_id     text not null references trips(id) on delete cascade,
+  url         text not null,
+  label       text,
+  created_by  text,
+  created_at  text not null default (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
 create index campsites_trip_id_idx on campsites(trip_id);
 create index photos_trip_id_idx    on photos(trip_id);
+create index links_trip_id_idx     on links(trip_id);
