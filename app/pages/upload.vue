@@ -50,9 +50,9 @@ watch(tripId, (value) => {
   if (!value) makeBadge.value = false
 })
 
-// Per-bucket size and MIME limits are a paid-plan feature, so this is the only
-// place we can enforce them. It stops honest mistakes, not determined users —
-// the backstop is Supabase's fixed 50 MB cap and the authenticated-only policy.
+// A UX guard, not a boundary: it stops honest mistakes before a phone spends a
+// minute uploading something that will be refused. The limit that counts is in
+// server/api/photos/index.post.ts, which checks size and MIME type itself.
 const MAX_BYTES = 10 * 1024 * 1024
 
 const file = ref<File | null>(null)
@@ -136,7 +136,6 @@ async function handleUpload() {
     </div>
 
     <h1>Upload a trip photo</h1>
-    <p class="lede">Straight to Supabase Storage.</p>
 
     <div class="card">
       <input type="file" accept="image/*" @change="onFileChange" />
@@ -208,12 +207,7 @@ async function handleUpload() {
 
 
 h1 {
-  margin: 1rem 0 0.5rem;
-}
-
-.lede {
-  color: #94a3b8;
-  margin: 0 0 1.5rem;
+  margin: 1rem 0 1.5rem;
 }
 
 .card {
