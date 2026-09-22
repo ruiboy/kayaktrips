@@ -11,6 +11,13 @@ type PhotoRow = {
   trip: { slug: string; title: string } | null
 }
 
+type PhotoPage = {
+  photos: PhotoRow[]
+  page: number
+  pageCount: number
+  total: number
+}
+
 const { isEditor } = useEditor()
 
 const photoDialog = ref<{ show: (photo: PhotoRow) => void } | null>(null)
@@ -22,12 +29,14 @@ const lightbox = ref<{ show: (id: string) => void } | null>(null)
 // Folded back in rather than refetched, so the tile changes the moment the
 // dialog closes.
 function onSaved(saved: { id: string; caption: string | null }) {
-  const row = photos.value?.find((photo) => photo.id === saved.id)
+  const row = data.value?.photos.find((photo) => photo.id === saved.id)
   if (row) row.caption = saved.caption
 }
 
 function onDeleted(id: string) {
-  if (photos.value) photos.value = photos.value.filter((photo) => photo.id !== id)
+  if (!data.value) return
+  data.value.photos = data.value.photos.filter((photo) => photo.id !== id)
+  data.value.total -= 1
 }
 
 // Public read, so this renders server-side for anonymous visitors too. The
@@ -37,9 +46,33 @@ function onDeleted(id: string) {
 // binding and fail server-side. This one carries the current event's context
 // (and its cookies) through.
 const requestFetch = useRequestFetch()
-const { data: photos, error } = await useAsyncData('photos', () =>
-  requestFetch<PhotoRow[]>('/api/photos'),
+
+// The page lives in the URL rather than in a ref, so a page of the gallery can
+// be linked, bookmarked and reached with the back button — and so the fetch
+// that SSR does is the one the URL asked for.
+const route = useRoute()
+const page = computed(() => {
+  const asked = Number.parseInt(String(route.query.page ?? '1'), 10)
+  return Number.isFinite(asked) && asked > 0 ? asked : 1
+})
+
+const { data, error } = await useAsyncData(
+  () => `photos:${page.value}`,
+  () => requestFetch<PhotoPage>('/api/photos', { query: { page: page.value } }),
+  { watch: [page] },
 )
+
+// The route clamps an out-of-range page, so this is the page actually served
+// rather than the one asked for.
+const photos = computed(() => data.value?.photos ?? [])
+const pageCount = computed(() => data.value?.pageCount ?? 1)
+const shown = computed(() => data.value?.page ?? 1)
+
+// Page one is the bare path: a gallery's first page shouldn't need a query
+// string to be its own address.
+function pageLink(n: number) {
+  return n === 1 ? '/photos' : `/photos?page=${n}`
+}
 
 const dateFormat = new Intl.DateTimeFormat('en-AU', {
   day: 'numeric',
@@ -66,7 +99,7 @@ function formatDate(iso: string) {
 
     <p v-if="error" class="error">Couldn't load photos: {{ error.message }}</p>
 
-    <p v-else-if="!photos?.length" class="empty">
+    <p v-else-if="!photos.length" class="empty">
       No photos yet. <NuxtLink to="/upload">Upload the first one</NuxtLink>.
     </p>
 
@@ -108,7 +141,32 @@ function formatDate(iso: string) {
       </li>
     </ul>
 
-    <PhotoLightbox v-if="photos?.length" ref="lightbox" :photos="photos" />
+    <!-- Two links and where you are. Kept under the grid rather than over it:
+         at the top it would be the first thing on a page whose point is the
+         photos, and you only want it once you've run out of them. A link
+         rather than a button, so a page of the gallery has an address. -->
+    <nav v-if="pageCount > 1" class="paging">
+      <NuxtLink v-if="shown > 1" class="step" :to="pageLink(shown - 1)" rel="prev">
+        ‹ Previous
+      </NuxtLink>
+      <span v-else class="step disabled" aria-hidden="true">‹ Previous</span>
+
+      <span class="where">Page {{ shown }} of {{ pageCount }}</span>
+
+      <NuxtLink
+        v-if="shown < pageCount"
+        class="step"
+        :to="pageLink(shown + 1)"
+        rel="next"
+      >
+        Next ›
+      </NuxtLink>
+      <span v-else class="step disabled" aria-hidden="true">Next ›</span>
+    </nav>
+
+    <!-- The set it walks is this page of the gallery, so forward and back
+         mean the next photo on screen rather than the next in the database. -->
+    <PhotoLightbox v-if="photos.length" ref="lightbox" :photos="photos" />
 
     <PhotoDialog
       v-if="isEditor"
@@ -222,6 +280,39 @@ h1 {
   color: #64748b;
   font-size: 0.85rem;
   font-style: italic;
+}
+
+.paging {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.step {
+  color: #38bdf8;
+  text-decoration: none;
+  font-size: 0.9rem;
+  border: 1px solid #334155;
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.75rem;
+}
+
+.step:hover {
+  border-color: #38bdf8;
+}
+
+/* Held in place rather than removed, so the two ends of the row don't swap
+   sides between the first page and the last. */
+.step.disabled {
+  color: #475569;
+  border-color: #1e293b;
+}
+
+.where {
+  color: #94a3b8;
+  font-size: 0.85rem;
 }
 
 .grid time {
