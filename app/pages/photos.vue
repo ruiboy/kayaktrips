@@ -15,6 +15,10 @@ const { isEditor } = useEditor()
 
 const photoDialog = ref<{ show: (photo: PhotoRow) => void } | null>(null)
 
+// The full-size viewer. Reads the same list the grid renders, so forward and
+// back walk the photos in the order they are on screen.
+const lightbox = ref<{ show: (id: string) => void } | null>(null)
+
 // Folded back in rather than refetched, so the tile changes the moment the
 // dialog closes.
 function onSaved(saved: { id: string; caption: string | null }) {
@@ -68,7 +72,13 @@ function formatDate(iso: string) {
 
     <ul v-else class="grid">
       <li v-for="photo in photos" :key="photo.id">
-        <a :href="photoUrl(photo.storage_path)" target="_blank" rel="noopener">
+        <!-- Still a real link to the original, so middle-click and "open in
+             new tab" keep working and it degrades without JS. The click itself
+             opens the lightbox instead. -->
+        <a
+          :href="photoUrl(photo.storage_path)"
+          @click.prevent="lightbox?.show(photo.id)"
+        >
           <img
             :src="thumbUrl(photo.storage_path)"
             :alt="photo.caption ?? ''"
@@ -97,6 +107,8 @@ function formatDate(iso: string) {
         <time :datetime="photo.created_at">{{ formatDate(photo.created_at) }}</time>
       </li>
     </ul>
+
+    <PhotoLightbox v-if="photos?.length" ref="lightbox" :photos="photos" />
 
     <PhotoDialog
       v-if="isEditor"

@@ -92,6 +92,10 @@ const badgePhoto = computed(
 // control and Delete, so neither sits on the page where a reader's thumb is.
 const photoDialog = ref<{ show: (photo: PhotoRow) => void } | null>(null)
 
+// The full-size viewer. Given this trip's photos rather than the whole
+// gallery, so forward and back stay inside the trip you are reading.
+const lightbox = ref<{ show: (id: string) => void } | null>(null)
+
 // Folded back in rather than refetched, so the tile and the header follow the
 // dialog closing.
 function onPhotoSaved(saved: { id: string; caption: string | null }) {
@@ -303,7 +307,13 @@ function onTripSaved(row: {
 
           <ul v-if="data.photos.length" class="grid">
             <li v-for="photo in data.photos" :key="photo.id">
-              <a :href="publicUrl(photo.storage_path)" target="_blank" rel="noopener">
+              <!-- Still a real link to the original, so middle-click and
+                   "open in new tab" keep working and it degrades without JS.
+                   The click itself opens the lightbox instead. -->
+              <a
+                :href="publicUrl(photo.storage_path)"
+                @click.prevent="lightbox?.show(photo.id)"
+              >
                 <img
                   :src="thumb(photo.storage_path)"
                   :alt="photo.caption ?? ''"
@@ -329,6 +339,12 @@ function onTripSaved(row: {
           </ul>
         </section>
       </div>
+
+      <PhotoLightbox
+        v-if="data.photos.length"
+        ref="lightbox"
+        :photos="data.photos"
+      />
 
       <PhotoDialog
         v-if="isEditor"
