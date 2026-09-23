@@ -153,7 +153,7 @@ async function remove() {
               allowfullscreen
             />
           </div>
-          <p class="row">
+          <p v-if="link.label || isEditor" class="row">
             <span class="label">{{ link.label }}</span>
             <EditButton
               v-if="isEditor"

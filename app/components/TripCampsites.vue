@@ -12,6 +12,78 @@ const props = defineProps<{
 
 const { isEditor } = useEditor()
 
+// Arriving from the campsites page or a marker's popup lands you on a trip that
+// can run well past a screen, with no sign of which campsite you asked for. The
+// link carries `#campsite-<id>`; this is the other half of it.
+//
+// Done here rather than left to the browser: on a click from /campsites the
+// navigation is client-side, so there is no document load to scroll a fragment,
+// and the row has to be found once the list has rendered. The map above reserves
+// its height before it loads, so nothing shifts under the scroll.
+const route = useRoute()
+const campsiteFocus = useCampsiteFocus()
+const flashing = ref<string | null>(null)
+let flashTimer: ReturnType<typeof setTimeout> | undefined
+let settleFrame: number | undefined
+
+// The ring used to start fading the moment it was asked for, while the page was
+// still gliding towards the card — so a good part of the fade was spent in
+// transit and you arrived at the tail of it. This waits for the scroll to stop.
+//
+// Watching the position rather than listening for `scrollend`: it also covers
+// the case where the card was already on screen and nothing scrolls at all,
+// which fires no event and would otherwise sit on the timeout.
+function whenScrollSettles(run: () => void) {
+  let last = window.scrollY
+  let still = 0
+  const giveUp = Date.now() + 1500
+
+  const tick = () => {
+    const now = window.scrollY
+    still = now === last ? still + 1 : 0
+    last = now
+    if (still >= 3 || Date.now() > giveUp) run()
+    else settleFrame = requestAnimationFrame(tick)
+  }
+
+  settleFrame = requestAnimationFrame(tick)
+}
+
+function reveal(asked: string | undefined) {
+  if (!asked) return
+
+  nextTick(() => {
+    const el = document.getElementById(`campsite-${asked}`)
+    if (!el) return
+
+    const quietly = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView({ behavior: quietly ? 'auto' : 'smooth', block: 'center' })
+
+    cancelAnimationFrame(settleFrame ?? 0)
+    whenScrollSettles(() => {
+      // Cleared afterwards so the same campsite can be asked for twice and
+      // flash both times.
+      flashing.value = asked
+      clearTimeout(flashTimer)
+      flashTimer = setTimeout(() => {
+        if (flashing.value === asked) flashing.value = null
+      }, 2600)
+    })
+  })
+}
+
+// Arriving with a fragment — from the campsites page, a marker on the all-trips
+// map, or a pasted link.
+onMounted(() => reveal(route.hash.match(/^#campsite-(.+)$/)?.[1]))
+
+// And a marker on this trip's own map, which can ask for the same campsite
+// twice and has to be heard both times.
+watch(campsiteFocus, (asked) => reveal(asked?.id))
+onBeforeUnmount(() => {
+  clearTimeout(flashTimer)
+  cancelAnimationFrame(settleFrame ?? 0)
+})
+
 // RATINGS, the Campsite type and the query all live in the composable now: the
 // map on the trip page needs the same rows, and sharing the keyed fetch keeps
 // the list and the markers from drifting apart.
@@ -237,7 +309,12 @@ function ratingText(value: number | null) {
     <p v-if="!campsites?.length" class="empty">No campsites recorded yet.</p>
 
     <ol v-else class="list">
-      <li v-for="site in campsites" :key="site.id">
+      <li
+        v-for="site in campsites"
+        :id="`campsite-${site.id}`"
+        :key="site.id"
+        :class="{ flashing: flashing === site.id }"
+      >
         <div class="site-head">
           <div>
             <h3>{{ site.name }}</h3>
@@ -474,6 +551,35 @@ function ratingText(value: number | null) {
   padding: 1.25rem;
   /* The card is what the ratings grid measures itself against. */
   container-type: inline-size;
+  /* Room for the ring below to sit outside the card without the list jumping
+     when it appears. */
+  scroll-margin: 1.5rem;
+}
+
+/* The one you asked for, once you have been scrolled to it. A ring that fades
+   rather than a colour that stays: it has to be findable for a moment and then
+   get out of the way, because it says nothing about the campsite itself. */
+@keyframes campsite-flash {
+  0%,
+  20% {
+    box-shadow: 0 0 0 2px #38bdf8, 0 0 1.5rem #38bdf866;
+  }
+  100% {
+    box-shadow: 0 0 0 2px #38bdf800, 0 0 1.5rem #38bdf800;
+  }
+}
+
+.list > li.flashing {
+  animation: campsite-flash 2.4s ease-out forwards;
+}
+
+/* No fade for anyone who asked not to have one — the ring still appears and is
+   still dropped when the class goes. */
+@media (prefers-reduced-motion: reduce) {
+  .list > li.flashing {
+    animation: none;
+    box-shadow: 0 0 0 2px #38bdf8;
+  }
 }
 
 .site-head {

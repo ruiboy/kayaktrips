@@ -32,6 +32,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{ place: [{ lat: number; lon: number }] }>()
 
+const route = useRoute()
+const campsiteFocus = useCampsiteFocus()
+
 const container = ref<HTMLElement | null>(null)
 let map: MapLibreMap | null = null
 let markers: Marker[] = []
@@ -112,12 +115,25 @@ function popupHtml(point: MapPoint) {
       ? point.label.slice(point.tripTitle.length + 3)
       : point.label
 
-  if (!point.tripSlug) return `<p class="pop-name">${escapeHtml(name)}</p>`
+  // A single trip's map: the trip is the page you are on, so there is nothing
+  // to open — except a campsite, which is further down this same page and
+  // otherwise has to be hunted for in the list.
+  if (!point.tripSlug) {
+    const line = `<p class="pop-name">${escapeHtml(name)}</p>`
+    return point.kind === 'campsite'
+      ? `${line}<a class="pop-link" href="#campsite-${encodeURIComponent(point.id)}">Go to campsite &darr;</a>`
+      : line
+  }
 
   return [
     `<p class="pop-trip">${escapeHtml(point.tripTitle ?? '')}</p>`,
     `<p class="pop-name"><span class="pop-kind">${place}</span> ${escapeHtml(name)}</p>`,
-    `<a class="pop-link" href="/trips/${encodeURIComponent(point.tripSlug)}">Open this trip &rarr;</a>`,
+    // A campsite's popup opens the campsite — scrolled to and flashed on the
+    // trip page — so the link says that rather than promising the trip and
+    // delivering something else.
+    point.kind === 'campsite'
+      ? `<a class="pop-link" href="/trips/${encodeURIComponent(point.tripSlug)}#campsite-${encodeURIComponent(point.id)}">Go to campsite &rarr;</a>`
+      : `<a class="pop-link" href="/trips/${encodeURIComponent(point.tripSlug)}">Open this trip &rarr;</a>`,
   ].join('')
 }
 
@@ -210,6 +226,8 @@ onMounted(async () => {
   })
   resizeObserver.observe(container.value as HTMLElement)
 
+  container.value?.addEventListener('click', onPopupClick)
+
   // `originalEvent` is present only when a human caused it; our own fitBounds
   // and jumpTo would otherwise mark the map as moved on the first draw.
   for (const event of ['dragstart', 'zoomstart', 'rotatestart'] as const) {
@@ -236,7 +254,38 @@ onMounted(async () => {
   )
 })
 
+// A popup's contents live in MapLibre's DOM, not in this template, so its
+// links are caught here rather than bound in markup. Only the same-page ones:
+// a link to another trip is an ordinary navigation and wants no help.
+//
+// Routed rather than left to the browser, because a bare fragment jump updates
+// the URL without telling vue-router, so the hash watcher that scrolls to the
+// campsite and flashes it would never run — you would get the jump and none of
+// the rest.
+function onPopupClick(event: MouseEvent) {
+  const link = (event.target as HTMLElement)?.closest?.('a.pop-link')
+  const href = link?.getAttribute('href')
+  if (!href?.startsWith('#')) return
+
+  event.preventDefault()
+
+  // The focus is what actually moves the page; the URL is updated so the
+  // campsite stays linkable from here.
+  campsiteFocus.value = {
+    id: decodeURIComponent(href.slice('#campsite-'.length)),
+    at: Date.now(),
+  }
+
+  // `replaceState`, not the router: a router navigation runs Nuxt's scroll
+  // behaviour, which jumps to the element instantly and then fights the smooth
+  // scroll the list is already doing. This changes the address and nothing
+  // else. Replace rather than push, too — showing something further down the
+  // page you are on is not a place to go back from.
+  history.replaceState(history.state, '', `${route.path}${href}`)
+}
+
 onBeforeUnmount(() => {
+  container.value?.removeEventListener('click', onPopupClick)
   resizeObserver?.disconnect()
   resizeObserver = null
   // Each map holds a WebGL context and browsers cap how many may exist, so

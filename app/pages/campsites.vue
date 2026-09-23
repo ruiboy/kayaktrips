@@ -90,31 +90,36 @@ const sorted = computed(() => {
          dates and map. -->
     <ol v-else class="list">
       <li v-for="site in sorted" :key="site.id">
-        <div>
-          <h2>{{ site.name }}</h2>
-          <p class="trip">
-            <NuxtLink :to="`/trips/${site.trip_slug}`">{{ site.trip_title }}</NuxtLink>
-          </p>
-          <p class="when">{{ formatDay(site.camped_on) }}</p>
-        </div>
+        <!-- The whole card is the link, and the fragment is what TripCampsites
+             scrolls to and flashes — so a trip with nine nights doesn't drop
+             you at the top of the page to find the one you clicked. One link
+             rather than a word inside the card: the card is about one campsite,
+             so every part of it is pointing at the same place. -->
+        <NuxtLink class="card" :to="`/trips/${site.trip_slug}#campsite-${site.id}`">
+          <div class="about">
+            <h2>{{ site.name }}</h2>
+            <p class="trip">{{ site.trip_title }}</p>
+            <p class="when">{{ formatDay(site.camped_on) }}</p>
+          </div>
 
-        <div class="side">
-          <p class="score">
-            <template v-if="site.score !== null">
-              {{ site.score }}<span class="out-of">/10</span>
-            </template>
-            <span v-else class="unrated">Unrated</span>
-          </p>
+          <div class="side">
+            <p class="score">
+              <template v-if="site.score !== null">
+                {{ site.score }}<span class="out-of">/10</span>
+              </template>
+              <span v-else class="unrated">Unrated</span>
+            </p>
 
-          <ul v-if="strengths(site).length" class="strengths">
-            <li v-for="rating in strengths(site)" :key="rating.key">
-              <RatingIcon
-                :name="rating.key"
-                :label="`${rating.label}: ${site[rating.key]}/2`"
-              />
-            </li>
-          </ul>
-        </div>
+            <ul v-if="strengths(site).length" class="strengths">
+              <li v-for="rating in strengths(site)" :key="rating.key">
+                <RatingIcon
+                  :name="rating.key"
+                  :label="`${rating.label}: ${site[rating.key]}/2`"
+                />
+              </li>
+            </ul>
+          </div>
+        </NuxtLink>
       </li>
     </ol>
   </main>
@@ -208,7 +213,7 @@ h1 {
 
 /* Type and colours follow the campsite cards on the trip page, so a site
    reads the same in both places. */
-.list > li {
+.card {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -216,9 +221,25 @@ h1 {
   background: #1e293b;
   border-radius: 0.75rem;
   padding: 1rem 1.25rem;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+  /* A ring rather than a border, so hovering doesn't move the contents by a
+     pixel. */
+  transition: background 0.12s, box-shadow 0.12s;
 }
 
-.list > li > div:first-child {
+.card:hover {
+  background: #243244;
+  box-shadow: 0 0 0 1px #38bdf8;
+}
+
+.card:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.about {
   min-width: 0;
 }
 
@@ -251,13 +272,10 @@ h2 {
   font-size: 0.85rem;
 }
 
-.trip a {
+/* Still the accent: the card goes to that trip, so the colour isn't promising
+   anything it doesn't do. */
+.trip {
   color: #38bdf8;
-  text-decoration: none;
-}
-
-.trip a:hover {
-  text-decoration: underline;
 }
 
 .when {
