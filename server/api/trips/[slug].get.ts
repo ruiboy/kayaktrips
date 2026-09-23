@@ -26,5 +26,25 @@ export default defineEventHandler(async (event) => {
       .bind(trip.id),
   )
 
-  return { trip, photos }
+  // The trips either side of this one in the order the index lists them:
+  // (start_date, id), so a same-day pair can't come out one way in the list and
+  // the other way here. One row each, found by the index on the primary key
+  // rather than by walking the table.
+  const neighbour = (direction: 'prev' | 'next') =>
+    first<{ slug: string; title: string }>(
+      db(event)
+        .prepare(
+          `select slug, title from trips
+            where start_date ${direction === 'prev' ? '<' : '>'} ?1
+               or (start_date = ?1 and id ${direction === 'prev' ? '<' : '>'} ?2)
+            order by start_date ${direction === 'prev' ? 'desc' : 'asc'},
+                     id ${direction === 'prev' ? 'desc' : 'asc'}
+            limit 1`,
+        )
+        .bind(trip.start_date, trip.id),
+    )
+
+  const [prev, next] = await Promise.all([neighbour('prev'), neighbour('next')])
+
+  return { trip, photos, prev, next }
 })

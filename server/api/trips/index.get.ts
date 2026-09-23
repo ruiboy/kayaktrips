@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
               p.storage_path as badge_storage_path
          from trips t
          left join photos p on p.id = t.badge_photo_id
-        order by t.start_date asc`,
+        order by t.start_date asc, t.id asc`,
     ),
   )
 

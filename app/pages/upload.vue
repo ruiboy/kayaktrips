@@ -131,7 +131,7 @@ async function handleUpload() {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <SiteNav />
+      <SiteNav trail="Upload" />
       <AccountControl />
     </div>
 

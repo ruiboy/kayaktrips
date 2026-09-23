@@ -74,7 +74,7 @@ async function createTrip() {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <SiteNav />
+      <SiteNav trail="New trip" />
       <AccountControl />
     </div>
     <h1>New trip</h1>

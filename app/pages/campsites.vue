@@ -49,7 +49,7 @@ const sorted = computed(() => {
 <template>
   <main class="wrap">
     <div class="topbar">
-      <SiteNav />
+      <SiteNav trail="Campsites" />
       <AccountControl />
     </div>
 
