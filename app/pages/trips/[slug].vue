@@ -25,6 +25,9 @@ type PhotoRow = {
   created_at: string
 }
 
+// The trips either side of this one, in the order /trips lists them.
+type Sibling = { slug: string; title: string }
+
 const route = useRoute()
 const { isEditor } = useEditor()
 const slug = computed(() => String(route.params.slug))
@@ -43,6 +46,8 @@ const { data, error } = await useAsyncData(
         photos: PhotoRow[]
         // Initials only. The registry is the only place an email lives.
         attendees: string[]
+        prev: Sibling | null
+        next: Sibling | null
       }>(`/api/trips/${slug.value}`)
     } catch (fetchError) {
       // Returned rather than rethrown on a 404: `useAsyncData` catches anything
@@ -354,6 +359,36 @@ function onTripSaved(row: {
         </div>
       </div>
 
+      <!-- The way on and the way back, at the end of the page where you have
+           finished reading rather than at the top where you haven't started.
+           Titles rather than "Next trip", because the direction alone doesn't
+           say where you are going. -->
+      <nav class="siblings" aria-label="Trips">
+        <NuxtLink
+          v-if="data.prev"
+          class="step"
+          :to="`/trips/${data.prev.slug}`"
+          rel="prev"
+        >
+          ‹ {{ data.prev.title }}
+        </NuxtLink>
+        <!-- Held rather than dropped, so the row doesn't swap sides on the
+             first and last trip. -->
+        <span v-else class="step disabled" aria-hidden="true">‹ Previous</span>
+
+        <NuxtLink class="step" to="/trips">All trips</NuxtLink>
+
+        <NuxtLink
+          v-if="data.next"
+          class="step"
+          :to="`/trips/${data.next.slug}`"
+          rel="next"
+        >
+          {{ data.next.title }} ›
+        </NuxtLink>
+        <span v-else class="step disabled" aria-hidden="true">Next ›</span>
+      </nav>
+
       <PhotoLightbox
         v-if="data.photos.length"
         ref="lightbox"
@@ -408,6 +443,35 @@ function onTripSaved(row: {
 /* Campsites left, photos right. `auto-fit` rather than a fixed two-column
    rule, so the columns drop under each other whenever there isn't room for
    both — no breakpoint to keep in sync with the content. */
+/* The same row as the gallery's paging, because it does the same job: three
+   pills, centred, no rule above them. */
+.siblings {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 3rem;
+}
+
+.step {
+  color: #38bdf8;
+  text-decoration: none;
+  font-size: 0.9rem;
+  border: 1px solid #334155;
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.75rem;
+}
+
+.step:hover {
+  border-color: #38bdf8;
+}
+
+.step.disabled {
+  color: #475569;
+  border-color: #1e293b;
+}
+
 /* The second grid cell holds two sections stacked, so they need their own
    spacing — the grid's `gap` only separates the columns. */
 .column {

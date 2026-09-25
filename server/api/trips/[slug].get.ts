@@ -26,16 +26,44 @@ export default defineEventHandler(async (event) => {
       .bind(trip.id),
   )
 
-  // Who was there, as they appear. Ordered so the row is stable between loads.
-  const attendees = await all<{ initials: string }>(
-    db(event)
-      .prepare(
-        `select p.initials
-           from attendances a join people p on p.id = a.person_id
-          where a.trip_id = ? order by p.initials asc`,
-      )
-      .bind(trip.id),
-  )
+  // Who was there, as they appear, and the trips either side of this one in the
+  // order the index lists them: (start_date, id), so a same-day pair can't come
+  // out one way in the list and the other way here. One row each, found by an
+  // index rather than by walking the table, and all three at once because none
+  // of them depends on the others.
+  const neighbour = (direction: 'prev' | 'next') =>
+    first<{ slug: string; title: string }>(
+      db(event)
+        .prepare(
+          `select slug, title from trips
+            where start_date ${direction === 'prev' ? '<' : '>'} ?1
+               or (start_date = ?1 and id ${direction === 'prev' ? '<' : '>'} ?2)
+            order by start_date ${direction === 'prev' ? 'desc' : 'asc'},
+                     id ${direction === 'prev' ? 'desc' : 'asc'}
+            limit 1`,
+        )
+        .bind(trip.start_date, trip.id),
+    )
 
-  return { trip, photos, attendees: attendees.map((row) => row.initials) }
+  const [attendees, prev, next] = await Promise.all([
+    all<{ initials: string }>(
+      db(event)
+        .prepare(
+          `select p.initials
+             from attendances a join people p on p.id = a.person_id
+            where a.trip_id = ? order by p.initials asc`,
+        )
+        .bind(trip.id),
+    ),
+    neighbour('prev'),
+    neighbour('next'),
+  ])
+
+  return {
+    trip,
+    photos,
+    attendees: attendees.map((row) => row.initials),
+    prev,
+    next,
+  }
 })
