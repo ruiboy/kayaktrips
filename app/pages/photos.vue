@@ -68,6 +68,15 @@ const photos = computed(() => data.value?.photos ?? [])
 const pageCount = computed(() => data.value?.pageCount ?? 1)
 const shown = computed(() => data.value?.page ?? 1)
 
+// Nuxt scrolls to the top when the path changes, but paging only changes the
+// query, so the reader stayed where the Next button had left them — at the
+// bottom, looking at the last row of a page they had just left. Instantly
+// rather than smoothly: the grid underneath has been replaced, so there is no
+// continuity for a glide to preserve.
+watch(page, () => {
+  if (import.meta.client) window.scrollTo({ top: 0, behavior: 'instant' })
+})
+
 // Page one is the bare path: a gallery's first page shouldn't need a query
 // string to be its own address.
 function pageLink(n: number) {
