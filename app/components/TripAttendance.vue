@@ -74,15 +74,18 @@ async function toggle() {
   <p v-if="here.length || canMark" class="who">
     <span v-for="entry in here" :key="entry" class="initial">{{ entry }}</span>
 
+    <!-- Outlined and grey in both states, never filled: your initial in the row
+         is what says you were there, and a control that announces it a second
+         time is the loudest thing on a line meant to be quiet. The mark changes,
+         the volume doesn't. -->
     <button
       v-if="canMark"
       class="mark"
-      :class="{ armed: iWasThere }"
       :aria-pressed="iWasThere"
       :disabled="saving"
       @click="toggle"
     >
-      I was there
+      {{ iWasThere ? '✓ You were there' : '+ Add me' }}
     </button>
 
     <span v-if="message" class="error">{{ message }}</span>
@@ -114,30 +117,26 @@ async function toggle() {
   letter-spacing: 0.02em;
 }
 
+/* The same ring the initials wear, stretched to fit a couple of words — so it
+   sits in the row rather than beside it. */
 .mark {
   margin-left: 0.25rem;
   background: none;
   border: 1px solid #334155;
   border-radius: 999px;
-  color: #94a3b8;
+  color: #64748b;
   font: inherit;
   font-size: 0.75rem;
-  padding: 0.2rem 0.7rem;
+  padding: 0 0.7rem;
   height: 1.6rem;
   cursor: pointer;
 }
 
+/* The only colour it ever takes is on hover, where it is answering a question
+   the reader has just asked by pointing at it. */
 .mark:hover:not(:disabled) {
   border-color: #38bdf8;
   color: #38bdf8;
-}
-
-/* Filled when it is on, the same as the armed controls elsewhere. */
-.mark.armed {
-  background: #38bdf8;
-  border-color: #38bdf8;
-  color: #0f172a;
-  font-weight: 600;
 }
 
 .mark:disabled {
