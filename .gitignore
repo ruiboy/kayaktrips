@@ -26,6 +26,9 @@ logs
 # Migration scratch — holds real email addresses, repo is public
 *.local.json
 db/seed*.sql
+# Real email addresses. This repo is public; the registry is seeded by hand
+# from a file that never joins it.
+db/people.local.sql
 
 # Wrangler local (miniflare) state
 .wrangler

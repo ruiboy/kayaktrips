@@ -37,6 +37,29 @@ const { data, error } = await useAsyncData('all-map-points', () =>
   requestFetch<{ trips: TripRow[]; campsites: CampsiteRow[] }>('/api/map'),
 )
 
+// Mine or all. Deliberately not remembered between visits: the page is called
+// Maps and exists to show the whole river, so that is what it opens on, and a
+// filter left on from last week would be a silent lie about how much is here.
+const { isEditor, initials } = useEditor()
+const { refresh: refreshAttendance, was } = useAttendance()
+onMounted(refreshAttendance)
+
+const mineOnly = ref(false)
+
+// Only for someone who can actually be on a trip: an editor the registry
+// doesn't know has nothing to filter to.
+const canFilter = computed(() => isEditor.value && initials.value !== null)
+
+// Every trip the map is drawn from, before the filter. Colours are assigned
+// from this one, so a trip keeps its colour whether or not the filter is on.
+const allTrips = computed(() => data.value?.trips ?? [])
+
+const trips = computed(() =>
+  mineOnly.value && canFilter.value
+    ? allTrips.value.filter((trip) => was(trip.id))
+    : allTrips.value,
+)
+
 // Which trip the reader has picked out, or null for "all of them". Clicking
 // the same trip again clears it, so there is always a way back to the overview
 // without hunting for a button.
@@ -51,7 +74,7 @@ function toggleFocus(tripId: string) {
 // swatch there always matches the pins.
 const colourOf = computed(() => {
   const byTrip = new Map<string, number>()
-  ;(data.value?.trips ?? []).forEach((trip, index) => byTrip.set(trip.id, index))
+  allTrips.value.forEach((trip, index) => byTrip.set(trip.id, index))
   return byTrip
 })
 
@@ -65,7 +88,7 @@ function swatch(tripId: string) {
 const points = computed<MapPoint[]>(() => {
   const all: MapPoint[] = []
 
-  for (const trip of data.value?.trips ?? []) {
+  for (const trip of trips.value) {
     const colour = colourOf.value.get(trip.id) ?? 0
     const belongs = { tripId: trip.id, tripTitle: trip.title, tripSlug: trip.slug, colour }
     if (trip.start_lat !== null && trip.start_lon !== null) {
@@ -111,12 +134,20 @@ const points = computed<MapPoint[]>(() => {
 
 // Only trips with something on the map get listed beneath it.
 const plotted = computed(() =>
-  (data.value?.trips ?? []).filter(
+  trips.value.filter(
     (trip) =>
       trip.start_lat !== null ||
       trip.end_lat !== null ||
       (data.value?.campsites ?? []).some((site) => site.trip_id === trip.id),
   ),
+)
+
+// Whether there is anything on the map at all, before the filter — so "nothing
+// placed yet" and "none of them are yours" stay separate answers.
+const anyPlaced = computed(
+  () =>
+    allTrips.value.some((trip) => trip.start_lat !== null || trip.end_lat !== null) ||
+    (data.value?.campsites ?? []).length > 0,
 )
 
 function pointCount(tripId: string) {
@@ -134,14 +165,46 @@ function pointCount(tripId: string) {
       <AccountControl />
     </div>
 
-    <h1>Maps</h1>
-    <p class="lede">Every trip that's been put on the map, all at once.</p>
+    <!-- Heading left, the filter level with it on the right — the same shape as
+         the order toggle on the campsites page. -->
+    <div class="head">
+      <div>
+        <h1>Maps</h1>
+        <p class="lede">Every trip that's been put on the map, all at once.</p>
+      </div>
+
+      <div v-if="canFilter" class="order" role="group" aria-label="Which trips">
+        <button
+          type="button"
+          :class="{ on: !mineOnly }"
+          :aria-pressed="!mineOnly"
+          @click="mineOnly = false"
+        >
+          All
+        </button>
+        <button
+          type="button"
+          :class="{ on: mineOnly }"
+          :aria-pressed="mineOnly"
+          @click="mineOnly = true"
+        >
+          Mine
+        </button>
+      </div>
+    </div>
 
     <p v-if="error" class="error">Couldn't load the map: {{ error.message }}</p>
 
-    <p v-else-if="!points.length" class="empty">
+    <p v-else-if="!anyPlaced" class="empty">
       Nothing placed yet. Open a trip and use the pencil beside its title to set
       the put-in and take-out.
+    </p>
+
+    <!-- The filter is on and it has emptied the map, which is a different thing
+         from nothing having been placed. -->
+    <p v-else-if="!points.length" class="empty">
+      None of the trips on the map are marked as yours. Open a trip and press
+      &ldquo;I was there&rdquo;.
     </p>
 
     <template v-else>
@@ -212,6 +275,49 @@ function pointCount(tripId: string) {
   flex-wrap: wrap;
 }
 
+
+/* Heading left, the filter level with it on the right; the filter drops beneath
+   the heading when there isn't room. */
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Two joined buttons, the current one filled — the same control as the order
+   toggle on the campsites page. */
+.order {
+  display: inline-flex;
+  border: 1px solid #334155;
+  border-radius: 0.4rem;
+  overflow: hidden;
+}
+
+.order button {
+  background: none;
+  border: none;
+  color: #38bdf8;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+}
+
+.order button + button {
+  border-left: 1px solid #334155;
+}
+
+.order button:hover:not(.on) {
+  background: #1e293b;
+}
+
+.order button.on {
+  background: #38bdf8;
+  color: #0f172a;
+  font-weight: 600;
+}
 
 h1 {
   margin: 1rem 0 0.5rem;

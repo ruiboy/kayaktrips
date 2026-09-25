@@ -3,5 +3,8 @@
 // Always 200 — "not an editor" is an answer, not an error.
 export default defineEventHandler(async (event) => {
   const email = await editorEmail(event)
-  return { email, editor: email !== null }
+  const person = await personFor(event, email)
+  // `initials` is null for an editor who isn't in the registry — they can write
+  // everything else, and the attendance control hides rather than failing.
+  return { email, editor: email !== null, initials: person?.initials ?? null }
 })

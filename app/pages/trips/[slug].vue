@@ -38,9 +38,12 @@ const { data, error } = await useAsyncData(
   () => `trip:${slug.value}`,
   async () => {
     try {
-      return await requestFetch<{ trip: TripRow; photos: PhotoRow[] }>(
-        `/api/trips/${slug.value}`,
-      )
+      return await requestFetch<{
+        trip: TripRow
+        photos: PhotoRow[]
+        // Initials only. The registry is the only place an email lives.
+        attendees: string[]
+      }>(`/api/trips/${slug.value}`)
     } catch (fetchError) {
       // Returned rather than rethrown on a 404: `useAsyncData` catches anything
       // the handler throws into `error`, which would render a soft failure at
@@ -249,6 +252,10 @@ function onTripSaved(row: {
           <p v-if="data.trip.start_place || data.trip.end_place" class="route">
             {{ data.trip.start_place ?? '?' }} &rarr; {{ data.trip.end_place ?? '?' }}
           </p>
+
+          <!-- Under the route rather than beside the title: it belongs with the
+               facts of the trip, and it is the last of them. -->
+          <TripAttendance :trip-id="data.trip.id" :attendees="data.attendees" />
         </div>
       </header>
 

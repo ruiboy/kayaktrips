@@ -285,6 +285,56 @@ Design intent worth preserving:
   a YouTube channel or playlist URL — there is nothing there to embed.
 - **Links live in the second column of the trip page, under the photos.**
 
+### `people` and `attendances`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `people.id` | `text` | PK — a uuid generated in app code |
+| `people.email` | `text` | not null, **unique**, `collate nocase` — the Access address |
+| `people.initials` | `text` | not null, **unique**, 1–3 characters |
+| `people.created_at` | `text` | not null, ISO 8601 UTC |
+| `attendances.trip_id` | `text` | not null, FK → `trips`, `on delete cascade` |
+| `attendances.person_id` | `text` | not null, FK → `people`, `on delete cascade` |
+| `attendances.created_at` | `text` | not null, ISO 8601 UTC |
+
+`attendances` has no surrogate key: `(trip_id, person_id)` is the primary key,
+because one person, one trip, once *is* the rule.
+
+Design intent worth preserving:
+
+- ⚠️ **An email address lives in exactly one row of one table.** That is the
+  whole point of the uuid key — every other table refers to `people.id`, so any
+  query that could return an address has had to join `people` to get one, and
+  reviewing for leaks is reviewing the joins. **No public response may carry an
+  email.** The trip page returns initials; the maps filter is served by
+  `GET /api/attendance/mine`, which is authenticated and returns trip ids only,
+  precisely so the public payload never needs a "this one is you" marker.
+- **The person comes from the verified token, never from the request.** Same
+  rule as `uploaded_by`, and here it is what makes "I was there" a statement
+  about yourself that no editor can make about anyone else. Deliberate: with
+  five people it would be convenient for the organiser to tick everyone off,
+  and the click is what makes appearing on a public page a choice.
+- ⚠️ **The registry is filled in by hand, and an editor without a row cannot
+  mark attendance.** Adding a sixth person is now two steps — the Access policy
+  *and* a `people` row — which is a new way to be half-configured. The UI hides
+  the control rather than offering one that can only fail; the route answers
+  403 if a request arrives anyway. Seed from `db/people.local.sql`, which is
+  gitignored because it holds real addresses.
+- **`initials` is unique and there is no `name`.** The initials are the entire
+  display, so two people showing as "S" would tell a reader nothing. They are
+  assigned by hand, so uniqueness is a promise the data can keep rather than a
+  write that fails at an awkward moment.
+- **Cascades from both ends.** A photo outlives the account that posted it
+  because the photo is the record; an attendance *is* the attribution, so when
+  either end goes there is nothing left for it to mean.
+- **`photos.uploaded_by` and `trips.created_by` still store emails**, and stay
+  that way deliberately. They are an audit trail written from the token and
+  never rendered, not a relationship — migrating historical rows to `person_id`
+  would be risk without a visible gain.
+- **The Mine/All filter on `/maps` resets to All on every visit.** The page
+  exists to show the whole river; a filter left on from last week would be a
+  quiet lie about how much is there.
+
 ## Environment
 
 - **Node 22** (`.nvmrc`). Several transitive deps require it; Node 20 produces
@@ -301,8 +351,10 @@ Design intent worth preserving:
 ## Auth
 
 - **Cloudflare Access, One-time PIN.** The allowlist is a list of emails in the
-  Access policy — dashboard config, not code. There is no users table, no
-  password handling, and no sign-up page. Team domain is
+  Access policy — dashboard config, not code. There is no password handling and
+  no sign-up page. The `people` table is a display registry — initials for a
+  public page — and authorises nothing; Access remains the only authority on
+  who may write. Adding an editor means both, and in that order. Team domain is
   `vixim.cloudflareaccess.com`; sessions last a month.
 - ⚠️ **One-time PIN has to be added as an identity provider.** It is the default
   *only when no provider exists at all*. The account had Cloudflare's own

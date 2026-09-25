@@ -26,5 +26,16 @@ export default defineEventHandler(async (event) => {
       .bind(trip.id),
   )
 
-  return { trip, photos }
+  // Who was there, as they appear. Ordered so the row is stable between loads.
+  const attendees = await all<{ initials: string }>(
+    db(event)
+      .prepare(
+        `select p.initials
+           from attendances a join people p on p.id = a.person_id
+          where a.trip_id = ? order by p.initials asc`,
+      )
+      .bind(trip.id),
+  )
+
+  return { trip, photos, attendees: attendees.map((row) => row.initials) }
 })

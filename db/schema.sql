@@ -81,6 +81,43 @@ create table links (
   created_at  text not null default (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
+-- Who the editors are, for display only. Access remains the only authority on
+-- who may write anything; this table exists because an email address is not a
+-- name, and a public page needs something to show.
+--
+-- The uuid rather than the email as the key is what keeps every address in one
+-- row of one table: any query that returns an email has had to join `people` to
+-- get it, so reviewing for leaks is reviewing the joins. It also means an editor
+-- who changes address costs one update rather than a rewrite of everything they
+-- have ever attended.
+--
+-- `initials` is unique because it is the whole display — there is no name to
+-- disambiguate two people showing as "S" — and because the owner assigns them
+-- by hand, so it is a promise the data can keep.
+create table people (
+  id          text not null primary key,
+  email       text not null collate nocase unique,
+  initials    text not null unique
+                check (length(initials) between 1 and 3),
+  created_at  text not null default (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- "I was there", one row per person per trip. The composite key is the rule
+-- itself, so no surrogate id is needed to say it twice.
+--
+-- Cascades from both sides. A photo outlives the account that posted it because
+-- the photo is the record; an attendance *is* the attribution, so when either
+-- end goes there is nothing left for it to mean.
+create table attendances (
+  trip_id     text not null references trips(id) on delete cascade,
+  person_id   text not null references people(id) on delete cascade,
+  created_at  text not null default (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  primary key (trip_id, person_id)
+);
+
 create index campsites_trip_id_idx on campsites(trip_id);
 create index photos_trip_id_idx    on photos(trip_id);
 create index links_trip_id_idx     on links(trip_id);
+-- The composite primary key already serves "who was on this trip"; this serves
+-- "which trips are mine".
+create index attendances_person_idx on attendances(person_id);

@@ -9,9 +9,16 @@
 // the next anonymous visitor. The cost is that the controls appear a moment
 // after hydration rather than in the first paint.
 export function useEditor() {
-  const state = useState<{ email: string | null; editor: boolean }>('editor', () => ({
+  const state = useState<{
+    email: string | null
+    editor: boolean
+    // How this editor appears on a trip they have marked, or null if they are
+    // not in the registry — which is a thing only the owner can put right.
+    initials: string | null
+  }>('editor', () => ({
     email: null,
     editor: false,
+    initials: null,
   }))
 
   const pending = useState('editor-pending', () => false)
@@ -23,7 +30,7 @@ export function useEditor() {
       state.value = await $fetch('/api/me')
     } catch {
       // A network failure means "unknown", which renders the same as "no".
-      state.value = { email: null, editor: false }
+      state.value = { email: null, editor: false, initials: null }
     } finally {
       pending.value = false
     }
@@ -34,6 +41,7 @@ export function useEditor() {
   return {
     email: computed(() => state.value.email),
     isEditor: computed(() => state.value.editor),
+    initials: computed(() => state.value.initials),
     refresh,
   }
 }
