@@ -12,6 +12,9 @@ const props = defineProps<{
   attendees: string[]
 }>()
 
+// Both button states answer the section's label rather than restating it, so
+// the line reads as one sentence. Two words out of context are not much for a
+// screen reader, so the full phrasing lives in the accessible name.
 const { isEditor, initials } = useEditor()
 const { was, refresh, remember } = useAttendance()
 
@@ -72,6 +75,10 @@ async function toggle() {
   <!-- Nothing at all on a trip nobody has marked, unless you are the one who
        could mark it. Silence is the right answer for a reader. -->
   <p v-if="here.length || canMark" class="who">
+    <!-- Named, now it sits at the foot with no heading above it to say what a
+         row of letters is. -->
+    <span class="label">Who was there:</span>
+
     <span v-for="entry in here" :key="entry" class="initial">{{ entry }}</span>
 
     <!-- Outlined and grey in both states, never filled: your initial in the row
@@ -82,10 +89,15 @@ async function toggle() {
       v-if="canMark"
       class="mark"
       :aria-pressed="iWasThere"
+      :aria-label="
+        iWasThere
+          ? 'You were on this trip — press to remove yourself'
+          : 'Add yourself to this trip'
+      "
       :disabled="saving"
       @click="toggle"
     >
-      {{ iWasThere ? '✓ You were there' : '+ Add me' }}
+      {{ iWasThere ? '✓ I was' : '+ Add me' }}
     </button>
 
     <span v-if="message" class="error">{{ message }}</span>
@@ -93,12 +105,26 @@ async function toggle() {
 </template>
 
 <style scoped>
+/* At the foot, under both columns, hugging its contents and centred: full width
+   made a band out of something that is one short line, and the emptiness either
+   side of the words was the loudest thing about it. */
 .who {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0.6rem 0 0;
+  gap: 0.5rem;
+  width: fit-content;
+  max-width: 100%;
+  margin: 3rem auto 0;
+  padding: 0.7rem 1.1rem;
+  background: #1e293b;
+  border-radius: 0.75rem;
+}
+
+.label {
+  color: #94a3b8;
+  font-size: 0.85rem;
 }
 
 /* A letter in a ring rather than a filled disc: the account control already
@@ -110,9 +136,9 @@ async function toggle() {
   min-width: 1.6rem;
   height: 1.6rem;
   padding: 0 0.35rem;
-  border: 1px solid #334155;
+  border: 1px solid #475569;
   border-radius: 999px;
-  color: #94a3b8;
+  color: #cbd5e1;
   font-size: 0.75rem;
   letter-spacing: 0.02em;
 }
@@ -122,9 +148,9 @@ async function toggle() {
 .mark {
   margin-left: 0.25rem;
   background: none;
-  border: 1px solid #334155;
+  border: 1px solid #475569;
   border-radius: 999px;
-  color: #64748b;
+  color: #94a3b8;
   font: inherit;
   font-size: 0.75rem;
   padding: 0 0.7rem;

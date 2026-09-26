@@ -257,10 +257,6 @@ function onTripSaved(row: {
           <p v-if="data.trip.start_place || data.trip.end_place" class="route">
             {{ data.trip.start_place ?? '?' }} &rarr; {{ data.trip.end_place ?? '?' }}
           </p>
-
-          <!-- Under the route rather than beside the title: it belongs with the
-               facts of the trip, and it is the last of them. -->
-          <TripAttendance :trip-id="data.trip.id" :attendees="data.attendees" />
         </div>
       </header>
 
@@ -363,6 +359,11 @@ function onTripSaved(row: {
            finished reading rather than at the top where you haven't started.
            Titles rather than "Next trip", because the direction alone doesn't
            say where you are going. -->
+      <!-- Across the foot, under both columns: it is about the trip as a whole
+           rather than about its photos or its campsites, so it belongs where
+           the page stops being two columns. -->
+      <TripAttendance :trip-id="data.trip.id" :attendees="data.attendees" />
+
       <nav class="siblings" aria-label="Trips">
         <NuxtLink
           v-if="data.prev"
@@ -451,7 +452,7 @@ function onTripSaved(row: {
   justify-content: center;
   flex-wrap: wrap;
   gap: 1rem;
-  margin-top: 3rem;
+  margin-top: 1.25rem;
 }
 
 .step {
